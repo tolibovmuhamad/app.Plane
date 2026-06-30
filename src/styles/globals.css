@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Базовые дизайн-токены (A0.1). Полную шкалу Plane (brand-100…1200, OKLCH,
+ * статусы danger/success/warning/info, поверхности layer-1/2/3, @font-face)
+ * заводит Soleh в B0.1. Здесь — минимум, чтобы приложение собиралось и
+ * выглядело в тёмной теме по умолчанию.
+ */
+:root,
+[data-theme='dark'] {
+  --color-bg-canvas: #191b1f;
+  --color-bg-surface-1: #1f2227;
+  --color-bg-surface-2: #25282d;
+  --color-accent-primary: oklch(45.11% 0.087 237.37);
+  --color-text-primary: #e6e6e6;
+  --color-text-secondary: #b3b3b3;
+  --color-text-tertiary: #808080;
+  --color-border: #2e3137;
+}
+
+[data-theme='light'] {
+  --color-bg-canvas: #ffffff;
+  --color-bg-surface-1: #f5f5f5;
+  --color-bg-surface-2: #ebebeb;
+  --color-accent-primary: oklch(45.11% 0.087 237.37);
+  --color-text-primary: #1a1a1a;
+  --color-text-secondary: #4d4d4d;
+  --color-text-tertiary: #808080;
+  --color-border: #e0e0e0;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg-canvas);
+  color: var(--color-text-primary);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
