@@ -3,32 +3,139 @@
 @tailwind utilities;
 
 /*
- * Базовые дизайн-токены (A0.1). Полную шкалу Plane (brand-100…1200, OKLCH,
- * статусы danger/success/warning/info, поверхности layer-1/2/3, @font-face)
- * заводит Soleh в B0.1. Здесь — минимум, чтобы приложение собиралось и
- * выглядело в тёмной теме по умолчанию.
+ * Design System Tokens (B0.1)
  */
 :root,
 [data-theme='dark'] {
-  --color-bg-canvas: #191b1f;
-  --color-bg-surface-1: #1f2227;
-  --color-bg-surface-2: #25282d;
-  --color-accent-primary: oklch(45.11% 0.087 237.37);
-  --color-text-primary: #e6e6e6;
-  --color-text-secondary: #b3b3b3;
-  --color-text-tertiary: #808080;
-  --color-border: #2e3137;
+  color-scheme: dark;
+
+  /* Brand oklch color scale (base blue-purple: oklch(45.11% .087 237.37)) */
+  --color-brand-100: oklch(93.5% 0.015 237.37);
+  --color-brand-200: oklch(87.0% 0.035 237.37);
+  --color-brand-300: oklch(77.0% 0.060 237.37);
+  --color-brand-400: oklch(62.0% 0.080 237.37);
+  --color-brand-500: oklch(45.11% 0.087 237.37);
+  --color-brand-600: oklch(39.0% 0.080 237.37);
+  --color-brand-700: oklch(33.0% 0.070 237.37);
+  --color-brand-800: oklch(27.0% 0.060 237.37);
+  --color-brand-900: oklch(21.0% 0.050 237.37);
+  --color-brand-1000: oklch(16.0% 0.040 237.37);
+  --color-brand-1100: oklch(12.0% 0.030 237.37);
+  --color-brand-1200: oklch(8.0% 0.020 237.37);
+
+  /* Semantic Core Colors */
+  --color-bg-canvas: oklch(14.5% 0.005 240);
+  --color-bg-surface-1: oklch(18% 0.008 240);
+  --color-bg-surface-2: oklch(22% 0.01 240);
+
+  /* Layer Backgrounds & States */
+  --color-bg-layer-1: oklch(19.5% 0.008 240);
+  --color-bg-layer-1-hover: oklch(22.5% 0.008 240);
+  --color-bg-layer-1-active: oklch(25% 0.008 240);
+  --color-bg-layer-1-selected: oklch(26% 0.02 237);
+
+  --color-bg-layer-2: oklch(24% 0.01 240);
+  --color-bg-layer-2-hover: oklch(27% 0.01 240);
+  --color-bg-layer-2-active: oklch(29% 0.01 240);
+  --color-bg-layer-2-selected: oklch(30% 0.02 237);
+
+  --color-bg-layer-3: oklch(28% 0.01 240);
+  --color-bg-layer-3-hover: oklch(31% 0.01 240);
+  --color-bg-layer-3-active: oklch(33% 0.01 240);
+  --color-bg-layer-3-selected: oklch(34% 0.02 237);
+
+  /* Accent Color */
+  --color-accent-primary: var(--color-brand-500);
+  --color-accent-hover: var(--color-brand-400);
+  --color-accent-active: var(--color-brand-300);
+
+  /* Text Colors */
+  --color-text-primary: oklch(93% 0.005 240);
+  --color-text-secondary: oklch(75% 0.008 240);
+  --color-text-tertiary: oklch(55% 0.008 240);
+  --color-text-placeholder: oklch(40% 0.008 240);
+  --color-text-on-accent: oklch(100% 0 0);
+
+  /* Borders */
+  --color-border-subtle: oklch(22% 0.008 240);
+  --color-border-default: oklch(26% 0.008 240);
+  --color-border-strong: oklch(32% 0.008 240);
+
+  /* Status Colors */
+  --color-success: oklch(62.8% 0.15 145);
+  --color-success-subtle: oklch(22% 0.04 145);
+  --color-success-text: oklch(82% 0.08 145);
+  
+  --color-danger: oklch(57.7% 0.20 27);
+  --color-danger-subtle: oklch(20% 0.04 27);
+  --color-danger-text: oklch(80% 0.08 27);
+
+  --color-warning: oklch(76.8% 0.16 70);
+  --color-warning-subtle: oklch(22% 0.04 70);
+  --color-warning-text: oklch(86% 0.06 70);
+
+  --color-info: oklch(64.2% 0.13 220);
+  --color-info-subtle: oklch(21% 0.04 220);
+  --color-info-text: oklch(84% 0.06 220);
 }
 
 [data-theme='light'] {
-  --color-bg-canvas: #ffffff;
-  --color-bg-surface-1: #f5f5f5;
-  --color-bg-surface-2: #ebebeb;
-  --color-accent-primary: oklch(45.11% 0.087 237.37);
-  --color-text-primary: #1a1a1a;
-  --color-text-secondary: #4d4d4d;
-  --color-text-tertiary: #808080;
-  --color-border: #e0e0e0;
+  color-scheme: light;
+
+  /* Semantic Core Colors */
+  --color-bg-canvas: oklch(98.5% 0.002 240);
+  --color-bg-surface-1: oklch(100% 0 0);
+  --color-bg-surface-2: oklch(96% 0.004 240);
+
+  /* Layer Backgrounds & States */
+  --color-bg-layer-1: oklch(97.5% 0.003 240);
+  --color-bg-layer-1-hover: oklch(94.5% 0.003 240);
+  --color-bg-layer-1-active: oklch(91.5% 0.003 240);
+  --color-bg-layer-1-selected: oklch(93.5% 0.015 237);
+
+  --color-bg-layer-2: oklch(95% 0.004 240);
+  --color-bg-layer-2-hover: oklch(92% 0.004 240);
+  --color-bg-layer-2-active: oklch(89% 0.004 240);
+  --color-bg-layer-2-selected: oklch(91% 0.015 237);
+
+  --color-bg-layer-3: oklch(92.5% 0.005 240);
+  --color-bg-layer-3-hover: oklch(89.5% 0.005 240);
+  --color-bg-layer-3-active: oklch(86.5% 0.005 240);
+  --color-bg-layer-3-selected: oklch(88.5% 0.015 237);
+
+  /* Accent Color */
+  --color-accent-primary: var(--color-brand-500);
+  --color-accent-hover: var(--color-brand-600);
+  --color-accent-active: var(--color-brand-700);
+
+  /* Text Colors */
+  --color-text-primary: oklch(17% 0.005 240);
+  --color-text-secondary: oklch(40% 0.008 240);
+  --color-text-tertiary: oklch(58% 0.008 240);
+  --color-text-placeholder: oklch(72% 0.008 240);
+  --color-text-on-accent: oklch(100% 0 0);
+
+  /* Borders */
+  --color-border-subtle: oklch(93.5% 0.003 240);
+  --color-border-default: oklch(90% 0.004 240);
+  --color-border-strong: oklch(78% 0.008 240);
+
+  /* Status Colors */
+  --color-success: oklch(58% 0.14 145);
+  --color-success-subtle: oklch(96% 0.012 145);
+  --color-success-text: oklch(35% 0.10 145);
+
+  --color-danger: oklch(55% 0.19 27);
+  --color-danger-subtle: oklch(96% 0.015 27);
+  --color-danger-text: oklch(35% 0.13 27);
+
+  --color-warning: oklch(72% 0.15 70);
+  --color-warning-subtle: oklch(96% 0.015 70);
+  --color-warning-text: oklch(42% 0.11 70);
+
+  --color-info: oklch(58% 0.13 220);
+  --color-info-subtle: oklch(95% 0.015 220);
+  --color-info-text: oklch(36% 0.10 220);
 }
 
 html,
@@ -41,6 +148,26 @@ body {
   margin: 0;
   background-color: var(--color-bg-canvas);
   color: var(--color-text-primary);
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Custom scrollbar styling for premium UI feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-default);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-border-strong);
 }

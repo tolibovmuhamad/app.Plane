@@ -4,6 +4,7 @@ import { GuestRoute } from './GuestRoute';
 import { LoginPage } from '@/features/auth/pages/LoginPage';
 import { RegisterPage } from '@/features/auth/pages/RegisterPage';
 import { HomePage } from '@/features/workspaces/pages/HomePage';
+import { AppShell } from '@/components/layout/AppShell';
 
 export const router = createBrowserRouter([
   {
@@ -15,7 +16,13 @@ export const router = createBrowserRouter([
   },
   {
     element: <ProtectedRoute />,
-    children: [{ path: '/', element: <HomePage /> }],
+    children: [
+      {
+        element: <AppShell />,
+        children: [{ path: '/', element: <HomePage /> }],
+      },
+    ],
   },
   { path: '*', element: <Navigate to="/" replace /> },
 ]);
+
