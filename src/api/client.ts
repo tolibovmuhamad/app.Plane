@@ -3,7 +3,7 @@ import axios, {
   type AxiosInstance,
   type InternalAxiosRequestConfig,
 } from 'axios';
-import { env } from '@/config/env';
+import { apiBaseUrl } from '@/config/env';
 import { useAuthStore } from '@/stores/auth.store';
 import type { AuthTokens } from '@/api/types';
 
@@ -14,7 +14,7 @@ import type { AuthTokens } from '@/api/types';
  * - параллельные 401 ждут один общий in-flight промис обновления.
  */
 export const apiClient: AxiosInstance = axios.create({
-  baseURL: `${env.apiUrl}/api/v1`,
+  baseURL: apiBaseUrl,
   headers: { 'Content-Type': 'application/json' },
 });
 
@@ -44,7 +44,7 @@ async function refreshTokens(): Promise<string> {
   }
 
   const { data } = await axios.post<AuthTokens>(
-    `${env.apiUrl}/api/v1/auth/refresh`,
+    `${apiBaseUrl}/auth/refresh`,
     { refresh_token: refreshToken },
     { headers: { 'Content-Type': 'application/json' } },
   );

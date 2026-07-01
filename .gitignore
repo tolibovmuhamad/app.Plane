@@ -9,6 +9,11 @@ dist
 dist-ssr
 *.local
 
+# TS build artefacts (не коммитить — генерятся из vite.config.ts / tsconfig)
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+
 # Env
 .env
 .env.*
