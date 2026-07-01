@@ -11,5 +11,12 @@ export default defineConfig({
     },
     server: {
         port: 5173,
+        proxy: {
+            '/api': {
+                target: 'https://task-management-backend-hxtn.onrender.com',
+                changeOrigin: true,
+                secure: false,
+            },
+        },
     },
 });
