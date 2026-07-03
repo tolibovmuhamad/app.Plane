@@ -20,7 +20,7 @@ export function Sidebar() {
   const { isSidebarOpen, toggleSidebar } = useUiStore();
   const { data: workspaces } = useWorkspaces();
   const { data: projects, isLoading: loadingProjects } = useProjects(currentWorkspaceSlug);
-  
+
   const [workspaceDropdownOpen, setWorkspaceDropdownOpen] = useState(false);
 
   // Auto-select first workspace if none selected

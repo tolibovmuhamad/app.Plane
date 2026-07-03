@@ -14,7 +14,7 @@ export function Topbar() {
   const { logout } = useSession();
   const { currentWorkspaceSlug, currentProjectId } = useWorkspaceStore();
   const { theme, setTheme, isSidebarOpen, toggleSidebar } = useUiStore();
-  
+
   const [profileOpen, setProfileOpen] = useState(false);
 
   const { data: workspaces } = useWorkspaces();
