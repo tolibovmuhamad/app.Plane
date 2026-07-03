@@ -84,57 +84,72 @@ VITE_API_URL=https://task-management-backend-hxtn.onrender.com
 
 ```
 TASK-MANAGMEN/
-├─ .env                       # VITE_API_URL
-├─ index.html
-├─ tailwind.config.ts
-├─ tsconfig.json
-├─ vite.config.ts
-└─ src/
-   ├─ main.tsx                # точка входа
-   ├─ App.tsx
-   ├─ app/
-   │  ├─ router.tsx           # роуты + ProtectedRoute
-   │  └─ providers.tsx        # QueryClientProvider, тема, тосты
-   ├─ api/
-   │  ├─ client.ts            # axios-инстанс + интерсепторы (Bearer, refresh-and-retry)
-   │  ├─ endpoints/           # по модулям бэкенда
-   │  │  ├─ auth.ts
-   │  │  ├─ workspaces.ts
-   │  │  ├─ projects.ts
-   │  │  ├─ issues.ts
-   │  │  ├─ states.ts
-   │  │  ├─ labels.ts
-   │  │  ├─ comments.ts
-   │  │  ├─ cycles.ts
-   │  │  ├─ modules.ts
-   │  │  └─ notifications.ts
-   │  └─ types.ts             # типы API (лучше generated/ из OpenAPI)
-   ├─ stores/                 # Zustand
-   │  ├─ auth.store.ts        # access/refresh токены, user, login/logout
-   │  ├─ workspace.store.ts   # текущий workspaceSlug / projectId
-   │  └─ ui.store.ts          # сайдбар, модалки, тема
-   ├─ features/               # фичи = модули домена
-   │  ├─ auth/                # pages (Login, Register), hooks
-   │  ├─ workspaces/
-   │  ├─ projects/
-   │  ├─ issues/              # список, доска (kanban), карточка
-   │  ├─ cycles/
-   │  ├─ modules/
-   │  └─ notifications/
-   ├─ components/
-   │  ├─ ui/                  # базовые в стиле Plane: Button, Input, Modal, Avatar, Badge, Dropdown…
-   │  └─ layout/              # AppShell, Sidebar, Topbar
-   ├─ hooks/                  # общие хуки (useDebounce, useMediaQuery…)
-   ├─ lib/                    # утилиты: cn(), даты, markdown
-   ├─ config/
-   │  └─ env.ts               # типизированный доступ к import.meta.env
-   └─ styles/
-      └─ globals.css          # дизайн-токены Plane (OKLCH) + @font-face
+├─ .env                       # переменные окружения (VITE_API_URL — базовый URL бэкенда)
+├─ index.html                 # HTML-каркас; сюда Vite подключает main.tsx
+├─ tailwind.config.ts         # конфиг Tailwind: семантические токены → CSS-переменные
+├─ tsconfig.json              # настройки TypeScript (strict-режим)
+├─ vite.config.ts             # конфиг сборщика Vite (плагины, алиасы, dev-сервер)
+└─ src/                       # ВЕСЬ исходный код приложения
+   ├─ main.tsx                # точка входа: монтирует React в #root, оборачивает в providers
+   ├─ App.tsx                 # корневой компонент (обычно рендерит роутер/лейаут)
+   ├─ app/                    # «сборка» приложения: как всё склеено вместе
+   │  ├─ router.tsx           # все маршруты (URL → страница) + ProtectedRoute (защита по авторизации)
+   │  └─ providers.tsx        # глобальные обёртки: QueryClientProvider (TanStack Query), тема, тосты
+   ├─ api/                    # ВСЁ общение с бэкендом (сеть) — только тут
+   │  ├─ client.ts            # единый axios-инстанс + интерсепторы (подстановка Bearer, авто-refresh при 401)
+   │  ├─ endpoints/           # по одной функции-обёртке на каждый модуль бэкенда:
+   │  │  ├─ auth.ts           #   логин/регистрация/refresh/logout/me
+   │  │  ├─ workspaces.ts     #   рабочие пространства
+   │  │  ├─ projects.ts       #   проекты внутри workspace
+   │  │  ├─ issues.ts         #   задачи (главная сущность)
+   │  │  ├─ states.ts         #   статусы задач (колонки канбана)
+   │  │  ├─ labels.ts         #   метки/теги
+   │  │  ├─ comments.ts       #   комментарии к задачам
+   │  │  ├─ cycles.ts         #   циклы (спринты)
+   │  │  ├─ modules.ts        #   модули (группы задач)
+   │  │  └─ notifications.ts  #   уведомления
+   │  └─ types.ts             # TypeScript-типы ответов/запросов API (лучше генерить из OpenAPI)
+   ├─ stores/                 # Zustand — ТОЛЬКО клиентское состояние (не серверные данные!)
+   │  ├─ auth.store.ts        # access/refresh токены, текущий user, действия login/logout
+   │  ├─ workspace.store.ts   # что сейчас выбрано: workspaceSlug / projectId
+   │  └─ ui.store.ts          # состояние интерфейса: открыт ли сайдбар, модалки, тема
+   ├─ features/               # ФИЧИ по доменам: вся логика фичи (страницы+компоненты+хуки) в своей папке
+   │  ├─ auth/                # экраны входа/регистрации + связанные хуки
+   │  ├─ workspaces/          # выбор/создание/настройки рабочих пространств
+   │  ├─ projects/            # список и настройки проектов
+   │  ├─ issues/              # задачи: список, доска (kanban), карточка задачи
+   │  ├─ cycles/              # спринты
+   │  ├─ modules/            # модули
+   │  └─ notifications/       # центр уведомлений
+   ├─ components/             # ПЕРЕИСПОЛЬЗУЕМЫЕ компоненты (не привязаны к одной фиче)
+   │  ├─ ui/                  # базовые кирпичики в стиле Plane: Button, Input, Modal, Avatar, Badge, Dropdown…
+   │  └─ layout/              # каркас страницы: AppShell (общая обёртка), Sidebar, Topbar
+   ├─ hooks/                  # общие React-хуки: useDebounce, useMediaQuery…
+   ├─ lib/                    # чистые утилиты без React: cn() (склейка классов), работа с датами, markdown
+   ├─ config/                 # конфигурация приложения
+   │  └─ env.ts               # типизированный и безопасный доступ к import.meta.env
+   └─ styles/                 # глобальные стили
+      └─ globals.css          # дизайн-токены Plane (цвета в OKLCH) + подключение шрифтов (@font-face)
 ```
+
+**Как читать этот проект (снизу вверх по слоям):**
+
+| Слой | Папка | За что отвечает | Куда смотреть первым |
+|---|---|---|---|
+| Точка входа | `src/main.tsx`, `App.tsx` | Запуск React, монтирование в HTML | С чего всё начинается |
+| Сборка | `src/app/` | Роуты и глобальные провайдеры | Какой URL → какая страница (`router.tsx`) |
+| Сеть | `src/api/` | Общение с бэкендом, типы, авторизация | `client.ts` (как летят запросы), `endpoints/` (что можно запросить) |
+| Состояние | `src/stores/` | Клиентское состояние (токены, выбор, UI) | Кто залогинен, что выбрано |
+| Фичи | `src/features/` | Экраны и логика по доменам | Основная работа приложения |
+| UI | `src/components/` | Переиспользуемые компоненты и каркас | Из чего собраны экраны |
+| Хелперы | `src/hooks/`, `src/lib/`, `src/config/` | Общие хуки и утилиты | Вспомогательный код |
+| Стили | `src/styles/` | Дизайн-токены и шрифты | Цвета, темы, типографика |
 
 Принцип: **feature-based**. Логика фичи живёт в `features/<имя>/`
 (страницы, компоненты, хуки), переиспользуемый UI — в `components/ui/`,
-доступ к сети — в `api/endpoints/`.
+доступ к сети — в `api/endpoints/`. Правило потока данных:
+**компонент фичи → хук → `api/endpoints/` → `api/client.ts` → бэкенд**;
+серверные данные держим в TanStack Query, клиентские — в `stores/`.
 
 ---
 

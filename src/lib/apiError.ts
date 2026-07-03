@@ -4,8 +4,20 @@ import type { ApiError, ApiErrorCode } from '@/api/types';
 export interface ParsedApiError {
   code: ApiErrorCode | 'NETWORK_ERROR' | 'UNKNOWN';
   message: string;
+  /** HTTP-статус ответа (если был). */
+  status?: number;
   /** Ошибки по полям из VALIDATION_ERROR.details → маппятся на форму. */
   fieldErrors: Record<string, string>;
+}
+
+/** Ответ вида `{ message: "..." }` или `{ error: "строка" }` (не наш конверт). */
+function looseMessage(data: unknown): string | null {
+  if (typeof data === 'object' && data !== null) {
+    const d = data as Record<string, unknown>;
+    if (typeof d.message === 'string') return d.message;
+    if (typeof d.error === 'string') return d.error;
+  }
+  return null;
 }
 
 function isApiError(data: unknown): data is ApiError {
@@ -25,6 +37,7 @@ function isApiError(data: unknown): data is ApiError {
  */
 export function parseApiError(error: unknown): ParsedApiError {
   if (error instanceof AxiosError) {
+    const status = error.response?.status;
     const data = error.response?.data;
 
     if (isApiError(data)) {
@@ -41,7 +54,7 @@ export function parseApiError(error: unknown): ParsedApiError {
         }
       }
 
-      return { code, message, fieldErrors };
+      return { code, message, status, fieldErrors };
     }
 
     if (!error.response) {
@@ -51,6 +64,15 @@ export function parseApiError(error: unknown): ParsedApiError {
         fieldErrors: {},
       };
     }
+
+    // Ответ не в нашем конверте — пробуем достать текст, иначе показываем статус.
+    const loose = looseMessage(data);
+    return {
+      code: 'UNKNOWN',
+      message: loose ?? `Ошибка сервера${status ? ` (HTTP ${status})` : ''}. Попробуйте ещё раз.`,
+      status,
+      fieldErrors: {},
+    };
   }
 
   return {
