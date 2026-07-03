@@ -6,9 +6,12 @@ import { useTaskFlow } from './useTaskFlow';
 import type { Theme } from './types';
 import { AuthScreen } from './AuthScreen';
 import { InviteScreen } from './InviteScreen';
+import { Toaster } from './Toaster';
+import { ProfileModal } from './ProfileModal';
 import { Onboarding } from './Onboarding';
 import { LeftRail, Sidebar, TopHeader } from './Shell';
 import { AiPage, HomePage, InboxPage, IssuesPage, ProjectsPage, SettingsPage, WikiPage, YourWorkPage } from './pages';
+import { ChatPage } from './ChatPage';
 import { CommandPalette, CreateIssue, CreateProject, CreateWorkspace, DeleteIssue, DeleteProject, DeleteWorkspace, InviteMembers, IssueDetail, ProjectMembers } from './overlays';
 import { useTF } from './context';
 
@@ -17,6 +20,7 @@ function MainContent(): JSX.Element {
   if (tf.isIssuesPage) return <IssuesPage />;
   if (tf.isHomePage) return <HomePage />;
   if (tf.isInboxPage) return <InboxPage />;
+  if (tf.isChatPage) return <ChatPage />;
   if (tf.isYourWorkPage) return <YourWorkPage />;
   if (tf.isProjectsPage) return <ProjectsPage />;
   if (tf.isWikiPage) return <WikiPage />;
@@ -61,6 +65,7 @@ function TaskFlowInner({ accent, theme, startInApp }: TaskFlowAppProps): JSX.Ele
                 <IssueDetail />
                 <CommandPalette />
                 <InviteMembers />
+                <ProfileModal />
                 <ProjectMembers />
                 <CreateIssue />
                 <DeleteIssue />
@@ -73,6 +78,7 @@ function TaskFlowInner({ accent, theme, startInApp }: TaskFlowAppProps): JSX.Ele
             <CreateWorkspace />
           </>
         )}
+        <Toaster />
       </div>
     </TFContext.Provider>
   );

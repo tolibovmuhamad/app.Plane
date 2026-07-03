@@ -24,9 +24,12 @@ import { projectMembersApi } from '@/api/endpoints/projectMembers';
 import type { ProjectRole } from '@/api/endpoints/projectMembers';
 import { invitesApi } from '@/api/endpoints/invites';
 import { notificationsApi } from '@/api/endpoints/notifications';
+import { chatsApi } from '@/api/endpoints/chats';
 import { issuesApi } from '@/api/endpoints/issues';
 import { commentsApi } from '@/api/endpoints/comments';
 import { parseApiError } from '@/lib/apiError';
+import { resolveMediaUrl } from '@/lib/media';
+import { toast } from './toast';
 import type { ApiIssue, IssueRef, Notification as ApiNotification, State as ApiState } from '@/api/types';
 
 /** Роли участника воркспейса (как в контракте бэкенда). */
@@ -204,12 +207,22 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
   const [page, setPage] = useState<Page>('home');
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('general');
   const [wsMenuOpen, setWsMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileTab, setProfileTab] = useState<'following' | 'followers'>('following');
+  // чат
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null);
+  const [chatDraft, setChatDraft] = useState('');
   const [inviteOpen, setInviteOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<WsRole>('member');
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [inviteNotice, setInviteNotice] = useState<string | null>(null);
+  // Ссылка-приглашение в workspace: бэкенд писем не шлёт, поэтому админ копирует её и передаёт человеку.
+  const [inviteLink, setInviteLink] = useState<string | null>(null);
+  const [inviteLinkCopied, setInviteLinkCopied] = useState(false);
   const [invitePicked, setInvitePicked] = useState(false);
+  // id выбранного из поиска зарегистрированного юзера → добавляем в workspace напрямую (без ссылки).
+  const [invitePickedUserId, setInvitePickedUserId] = useState<string | null>(null);
   const [inviteQueryDebounced, setInviteQueryDebounced] = useState('');
   const [createProjectOpen, setCreateProjectOpen] = useState(false);
   const [projName, setProjName] = useState('');
@@ -360,8 +373,10 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       try {
         if (mode === 'register') {
           await register({ email: email.trim(), password: pass, display_name: name.trim() });
+          toast.success('Аккаунт создан. Добро пожаловать!');
         } else {
           await login({ email: email.trim(), password: pass });
+          toast.success('Вы вошли в аккаунт');
         }
         setSubmitting(false);
         // Пришли по ссылке-приглашению → остаёмся на экране инвайта, где теперь
@@ -383,6 +398,7 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
 
   const doLogout = useCallback(async () => {
     await logout();
+    toast.info('Вы вышли из аккаунта');
     setView('auth');
     setMode('login');
     setName('');
@@ -646,6 +662,7 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       setPage('home');
       setLoading(true);
       runSkeleton();
+      toast.success(inviteQ.data ? `Вы вступили в «${inviteQ.data.workspace.name}»` : 'Приглашение принято');
     },
     onError: (err) => {
       const p = parseApiError(err);
@@ -663,7 +680,10 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
   };
   const issuesPageActive = view === 'app' && page === 'issues' && !!currentWs && !!currentProject;
   const homeActive = view === 'app' && page === 'home' && !!currentWs;
+  const yourWorkActive = view === 'app' && page === 'yourwork' && !!currentWs;
   const inboxActive = view === 'app' && page === 'inbox' && !!currentWs;
+  // Home, Your work и Inbox все тянут задачи по всем проектам воркспейса (фан-аут).
+  const crossProjectActive = homeActive || yourWorkActive;
   const wsSlug = currentWs?.slug ?? '';
   const projId = currentProject?.id ?? '';
   const FALLBACK_STATE: StateDef = { id: '', name: '—', group: 'unstarted', color: '#9AA0A8' };
@@ -784,6 +804,7 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       setIssueTitle('');
       setIssueDesc('');
       setIssueError(null);
+      toast.success('Задача создана');
     },
     onError: (err) => setIssueError(parseApiError(err).message),
   });
@@ -824,8 +845,13 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       setDeleteIssueTarget(null);
       setDeleteIssueError(null);
       setOpenKey(null); // закрываем панель задачи
+      toast.success('Задача удалена');
     },
-    onError: (err) => setDeleteIssueError(parseApiError(err).message),
+    onError: (err) => {
+      const msg = parseApiError(err).message;
+      setDeleteIssueError(msg);
+      toast.error(`Не удалось удалить задачу: ${msg}`);
+    },
   });
 
   const realGroups = realStates
@@ -944,19 +970,19 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
   // На Inbox тоже фан-аутим задачи по проектам — чтобы по issue_id из уведомления
   // определить проект и открыть задачу (у уведомления есть issue_id, но нет project_id).
   const homeIssueQs = useQueries({
-    queries: (homeActive || inboxActive ? projectsData : []).map((p) => ({
+    queries: (crossProjectActive || inboxActive ? projectsData : []).map((p) => ({
       queryKey: ['ws', wsSlug, 'proj', p.id, 'issues'],
       queryFn: () => issuesApi.listGroupedByState(wsSlug, p.id),
     })),
   });
   const homeStateQs = useQueries({
-    queries: (homeActive ? projectsData : []).map((p) => ({
+    queries: (crossProjectActive ? projectsData : []).map((p) => ({
       queryKey: ['ws', wsSlug, 'proj', p.id, 'states'],
       queryFn: () => statesApi.list(wsSlug, p.id),
     })),
   });
   const homeLabelQs = useQueries({
-    queries: (homeActive ? projectsData : []).map((p) => ({
+    queries: (crossProjectActive ? projectsData : []).map((p) => ({
       queryKey: ['ws', wsSlug, 'proj', p.id, 'labels'],
       queryFn: () => labelsApi.list(wsSlug, p.id),
     })),
@@ -1019,6 +1045,12 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
     .filter((i) => i.due_date)
     .sort((a, b) => new Date(a.due_date as string).getTime() - new Date(b.due_date as string).getTime())
     .map(homeRowOf);
+  const homeOverdueRows = homeMine
+    .filter((i) => {
+      const d = dueOf(i);
+      return d && d.over;
+    })
+    .map(homeRowOf);
   const homeLoading = homeActive && homeIssueQs.some((q) => q.isLoading);
   const homeGreeting = (() => {
     const h = new Date().getHours();
@@ -1075,23 +1107,69 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
     issue_assigned: 'assigned you',
     comment_added: 'commented on',
     mentioned: 'mentioned you in',
+    project_invite_received: 'invited you to',
+    project_member_added: 'added you to',
   };
+
+  // Приглашение в проект (pending): accept → вступаешь, decline → отклоняешь.
+  const projectInviteMutation = useMutation({
+    mutationFn: async (v: { projectId: string; action: 'accept' | 'decline' }) => {
+      if (v.action === 'accept') await projectMembersApi.accept(wsSlug, v.projectId);
+      else await projectMembersApi.decline(wsSlug, v.projectId);
+    },
+    onSuccess: (_r, v) => {
+      qc.invalidateQueries({ queryKey: ['ws', wsSlug, 'notifications'] });
+      qc.invalidateQueries({ queryKey: ['ws', wsSlug, 'projects'] });
+      qc.invalidateQueries({ queryKey: ['project', v.projectId, 'members'] });
+      const nm = projInviteNameById[v.projectId];
+      if (v.action === 'accept') toast.success(nm ? `Вы вступили в проект «${nm}»` : 'Вы вступили в проект');
+      else toast.info('Приглашение отклонено');
+    },
+    onError: (err) => toast.error(parseApiError(err).message),
+  });
+
+  const projInviteNameById: Record<string, string> = {};
+  projectsData.forEach((p) => {
+    projInviteNameById[p.id] = p.name;
+  });
 
   const inboxItems = (notifQ.data?.data ?? []).map((n) => {
     const loc = n.issue_id ? notifIssueLoc[n.issue_id] : undefined;
     const actorName = n.actor?.display_name || 'Someone';
+    const isProjectInvite = n.type === 'project_invite_received' && !!n.entity_id;
+    const projName = n.entity_id ? projInviteNameById[n.entity_id] : undefined;
     return {
       id: n.id,
       actorName,
       initials: initialsOf(actorName),
       color: colorFor(n.actor_id),
       avatarUrl: n.actor?.avatar_url ?? null,
-      verb: notifVerb[n.type],
-      target: loc ? loc.key : n.issue_id ? 'an issue' : 'your workspace',
+      verb: notifVerb[n.type] ?? 'notified you about',
+      target: isProjectInvite
+        ? projName ?? 'a project'
+        : loc
+          ? loc.key
+          : n.issue_id
+            ? 'an issue'
+            : 'your workspace',
       at: relTime(n.created_at),
       isRead: n.is_read,
       canOpen: !!loc,
-      open: () => openNotification(n),
+      isProjectInvite,
+      inviteBusy: projectInviteMutation.isPending,
+      accept: isProjectInvite
+        ? () => {
+            if (!n.is_read) markReadMutation.mutate(n.id);
+            projectInviteMutation.mutate({ projectId: n.entity_id!, action: 'accept' });
+          }
+        : undefined,
+      decline: isProjectInvite
+        ? () => {
+            if (!n.is_read) markReadMutation.mutate(n.id);
+            projectInviteMutation.mutate({ projectId: n.entity_id!, action: 'decline' });
+          }
+        : undefined,
+      open: isProjectInvite ? () => {} : () => openNotification(n),
     };
   });
 
@@ -1159,11 +1237,36 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       invalidateMembers();
       setInviteEmail('');
       setInviteError(null);
-      setInviteNotice(`Приглашение отправлено на ${inv.email} (${inv.role}). Участник появится после принятия.`);
+      setInviteLinkCopied(false);
+      setInviteLink(`${window.location.origin}/invites/${inv.token}`);
+      setInviteNotice(`Ссылка-приглашение для ${inv.email} (${inv.role}) готова. Скопируйте её и отправьте — по ней человек нажмёт «Принять» и войдёт в workspace.`);
+      toast.success(`Приглашение для ${inv.email} создано`);
     },
     onError: (err) => {
       // eslint-disable-next-line no-console
       console.error('[invite] failed:', err);
+      const p = parseApiError(err);
+      setInviteNotice(null);
+      setInviteLink(null);
+      setInviteError(`${p.message}${p.status ? ` [${p.code} · HTTP ${p.status}]` : ''}`);
+    },
+  });
+  // Прямое добавление зарегистрированного юзера в workspace по user_id — сразу участник, без accept.
+  const addMemberMutation = useMutation({
+    mutationFn: (v: { userId: string; role: WsRole }) =>
+      membersApi.add(wsSlug, { user_id: v.userId, role: v.role }),
+    onSuccess: (m) => {
+      invalidateMembers();
+      setInviteEmail('');
+      setInvitePicked(false);
+      setInvitePickedUserId(null);
+      setInviteError(null);
+      setInviteLink(null);
+      const nm = m.user?.display_name || m.user?.email || 'Участник';
+      setInviteNotice(`${nm} добавлен в workspace (${m.role}). Теперь его можно добавить в проект.`);
+      toast.success(`${nm} добавлен в workspace`);
+    },
+    onError: (err) => {
       const p = parseApiError(err);
       setInviteNotice(null);
       setInviteError(`${p.message}${p.status ? ` [${p.code} · HTTP ${p.status}]` : ''}`);
@@ -1175,11 +1278,248 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
   });
   const removeMutation = useMutation({
     mutationFn: (userId: string) => membersApi.remove(wsSlug, userId),
-    onSuccess: invalidateMembers,
+    onSuccess: () => {
+      invalidateMembers();
+      toast.success('Участник удалён из workspace');
+    },
+    onError: (err) => toast.error(parseApiError(err).message),
+  });
+
+  // ================= ПРОФИЛЬ: АВАТАР + ПОДПИСКИ =================
+  const myId = user?.id ?? '';
+  const followersQ = useQuery({
+    queryKey: ['user', myId, 'followers'],
+    queryFn: () => usersApi.followers(myId),
+    enabled: (profileOpen || page === 'chat') && !!myId,
+  });
+  const followingQ = useQuery({
+    queryKey: ['user', myId, 'following'],
+    queryFn: () => usersApi.following(myId),
+    // Нужно в профиле, в списке участников и в чате (взаимные подписчики).
+    enabled: (profileOpen || inviteOpen || page === 'chat') && !!myId,
+  });
+  const followingIds = new Set((followingQ.data ?? []).map((u) => u.id));
+
+  const invalidateFollows = () => {
+    qc.invalidateQueries({ queryKey: ['user', myId, 'followers'] });
+    qc.invalidateQueries({ queryKey: ['user', myId, 'following'] });
+  };
+
+  const followMutation = useMutation({
+    mutationFn: (userId: string) => usersApi.follow(userId),
+    onSuccess: () => {
+      invalidateFollows();
+      toast.success('Вы подписались');
+    },
+    onError: (err) => toast.error(parseApiError(err).message),
+  });
+  const unfollowMutation = useMutation({
+    mutationFn: (userId: string) => usersApi.unfollow(userId),
+    onSuccess: () => {
+      invalidateFollows();
+      toast.info('Вы отписались');
+    },
+    onError: (err) => toast.error(parseApiError(err).message),
+  });
+
+  const uploadAvatarMutation = useMutation({
+    mutationFn: (file: File) => usersApi.uploadAvatar(file),
+    onSuccess: (r) => {
+      if (user) setUser({ ...user, avatar_url: r.avatar_url });
+      invalidateMembers();
+      toast.success('Аватар обновлён');
+    },
+    onError: (err) => toast.error(`Не удалось загрузить аватар: ${parseApiError(err).message}`),
+  });
+  const deleteAvatarMutation = useMutation({
+    mutationFn: () => usersApi.deleteAvatar(),
+    onSuccess: () => {
+      if (user) setUser({ ...user, avatar_url: null });
+      invalidateMembers();
+      toast.success('Аватар удалён');
+    },
+    onError: (err) => toast.error(parseApiError(err).message),
+  });
+
+  const toBrief = (u: { id: string; display_name: string; email: string; avatar_url: string | null }) => ({
+    id: u.id,
+    name: u.display_name || u.email,
+    email: u.email,
+    initials: u.display_name ? initialsOf(u.display_name) : (u.email[0] || '?').toUpperCase(),
+    color: colorFor(u.id),
+    avatarUrl: u.avatar_url,
+    isFollowing: followingIds.has(u.id),
+    isSelf: u.id === myId,
+    follow: () => followMutation.mutate(u.id),
+    unfollow: () => unfollowMutation.mutate(u.id),
+  });
+
+  // ================= ЧАТ =================
+  const chatActive = view === 'app' && page === 'chat';
+  const chatsQ = useQuery({
+    queryKey: ['chats'],
+    queryFn: () => chatsApi.list(),
+    enabled: chatActive,
+    refetchInterval: chatActive ? 8000 : false,
+  });
+  const chatsData = chatsQ.data ?? [];
+
+  // Взаимные подписчики = я подписан И он подписан на меня.
+  const followerIdSet = new Set((followersQ.data ?? []).map((u) => u.id));
+  const mutuals = (followingQ.data ?? []).filter((u) => followerIdSet.has(u.id));
+
+  // Собеседник чата = второй участник (не я).
+  const otherOf = (c: (typeof chatsData)[number]) => c.members.find((m) => m.user_id !== myId)?.user;
+
+  const messagesQ = useQuery({
+    queryKey: ['chat', selectedChatId, 'messages'],
+    queryFn: () => chatsApi.messages(selectedChatId!),
+    enabled: chatActive && !!selectedChatId,
+    refetchInterval: chatActive && selectedChatId ? 4000 : false,
+  });
+
+  const invalidateChats = () => qc.invalidateQueries({ queryKey: ['chats'] });
+  const invalidateMessages = () =>
+    qc.invalidateQueries({ queryKey: ['chat', selectedChatId, 'messages'] });
+
+  const createChatMutation = useMutation({
+    mutationFn: (recipientId: string) => chatsApi.create(recipientId),
+    onSuccess: (chat) => {
+      invalidateChats();
+      setSelectedChatId(chat.id);
+    },
+    onError: (err) => toast.error(parseApiError(err).message),
+  });
+  const sendMessageMutation = useMutation({
+    mutationFn: (content: string) => chatsApi.sendMessage(selectedChatId!, content),
+    onSuccess: () => {
+      setChatDraft('');
+      invalidateMessages();
+      invalidateChats();
+    },
+    onError: (err) => toast.error(parseApiError(err).message),
+  });
+  const sendVoiceMutation = useMutation({
+    mutationFn: (v: { blob: Blob; duration: number }) =>
+      chatsApi.sendVoice(selectedChatId!, v.blob, v.duration),
+    onSuccess: () => {
+      invalidateMessages();
+      invalidateChats();
+    },
+    onError: (err) => toast.error(`Голосовое не отправилось: ${parseApiError(err).message}`),
+  });
+  const startCallMutation = useMutation({
+    mutationFn: (type: 'audio' | 'video') => chatsApi.startCall(selectedChatId!, type),
+    onSuccess: (call) => {
+      invalidateMessages();
+      // Jitsi-ссылка готова — открываем звонок в новой вкладке.
+      window.open(call.jitsi_url, '_blank', 'noopener');
+      toast.success('Звонок начат — открыл Jitsi в новой вкладке');
+    },
+    onError: (err) => toast.error(parseApiError(err).message),
+  });
+  const reactMutation = useMutation({
+    mutationFn: (v: { messageId: string; reaction: string }) =>
+      chatsApi.addReaction(v.messageId, v.reaction),
+    onSuccess: invalidateMessages,
+    onError: (err) => toast.error(parseApiError(err).message),
+  });
+
+  const openChatWith = (recipientId: string) => {
+    // Уже есть чат с этим человеком? — просто выбираем.
+    const existing = chatsData.find((c) => otherOf(c)?.id === recipientId);
+    if (existing) setSelectedChatId(existing.id);
+    else createChatMutation.mutate(recipientId);
+  };
+
+  const submitChatMessage = () => {
+    const text = chatDraft.trim();
+    if (!text || !selectedChatId) return;
+    sendMessageMutation.mutate(text);
+  };
+
+  // ---- производные данные чата для UI ----
+  const chatTime = (iso: string) =>
+    new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+  const chatPeople = (() => {
+    const seen = new Set<string>();
+    const items = chatsData
+      .map((c) => {
+        const o = otherOf(c);
+        if (!o) return null;
+        seen.add(o.id);
+        const nm = o.display_name || o.email || 'User';
+        return {
+          key: c.id,
+          name: nm,
+          initials: initialsOf(nm),
+          color: colorFor(o.id),
+          avatarUrl: resolveMediaUrl(o.avatar_url),
+          active: c.id === selectedChatId,
+          hasChat: true,
+          open: () => setSelectedChatId(c.id),
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => !!x);
+    // взаимные подписчики, с кем ещё нет чата
+    mutuals.forEach((u) => {
+      if (seen.has(u.id)) return;
+      const nm = u.display_name || u.email || 'User';
+      items.push({
+        key: u.id,
+        name: nm,
+        initials: initialsOf(nm),
+        color: colorFor(u.id),
+        avatarUrl: u.avatar_url,
+        active: false,
+        hasChat: false,
+        open: () => openChatWith(u.id),
+      });
+    });
+    return items;
+  })();
+
+  const selectedChat = chatsData.find((c) => c.id === selectedChatId) ?? null;
+  const chatPartner = selectedChat ? otherOf(selectedChat) : null;
+  const chatHeader = chatPartner
+    ? {
+        name: chatPartner.display_name || chatPartner.email || 'User',
+        initials: initialsOf(chatPartner.display_name || chatPartner.email || '?'),
+        color: colorFor(chatPartner.id),
+        avatarUrl: resolveMediaUrl(chatPartner.avatar_url),
+      }
+    : null;
+
+  const chatMessages = (messagesQ.data ?? []).map((m) => {
+    const agg: Record<string, { count: number; mine: boolean }> = {};
+    (m.reactions ?? []).forEach((r) => {
+      const cur = agg[r.reaction] ?? { count: 0, mine: false };
+      cur.count += 1;
+      if (r.user_id === myId) cur.mine = true;
+      agg[r.reaction] = cur;
+    });
+    return {
+      id: m.id,
+      mine: m.sender_id === myId,
+      content: m.content,
+      voiceUrl: resolveMediaUrl(m.voice_url),
+      voiceDuration: m.voice_duration,
+      isCall: !!m.call_id,
+      time: chatTime(m.created_at),
+      reactions: Object.entries(agg).map(([emoji, v]) => ({ emoji, count: v.count, mine: v.mine })),
+      react: (emoji: string) => reactMutation.mutate({ messageId: m.id, reaction: emoji }),
+    };
   });
 
   const submitInvite = (e: React.FormEvent) => {
     e.preventDefault();
+    // Выбрали зарегистрированного из списка → добавляем в workspace сразу по user_id.
+    if (invitePickedUserId) {
+      addMemberMutation.mutate({ userId: invitePickedUserId, role: inviteRole });
+      return;
+    }
+    // Иначе — приглашение по email (человек ещё не зарегистрирован / введён вручную).
     const em = inviteEmail.trim();
     if (!em) return;
     inviteMutation.mutate({ email: em, role: inviteRole });
@@ -1190,7 +1530,20 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
     setInviteError(null);
     setInviteNotice(null);
     setInvitePicked(false);
+    setInvitePickedUserId(null);
+    setInviteLink(null);
+    setInviteLinkCopied(false);
     setInviteQueryDebounced('');
+  };
+  const copyInviteLink = () => {
+    if (!inviteLink) return;
+    void navigator.clipboard?.writeText(inviteLink).then(
+      () => {
+        setInviteLinkCopied(true);
+        setTimeout(() => setInviteLinkCopied(false), 2000);
+      },
+      () => setInviteLinkCopied(false),
+    );
   };
 
   // Дебаунс ввода email → строка для поиска юзеров (подсказки).
@@ -1223,6 +1576,9 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
               pick: () => {
                 setInviteEmail(u.email);
                 setInvitePicked(true);
+                setInvitePickedUserId(u.id);
+                setInviteError(null);
+                setInviteNotice(null);
               },
             };
           })
@@ -1245,6 +1601,13 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       canEdit: canManageMembers && !isWsOwner,
       setRole: (role: WsRole) => roleMutation.mutate({ userId: m.user_id, role }),
       remove: () => removeMutation.mutate(m.user_id),
+      // Подписка (для чужих участников)
+      isFollowing: followingIds.has(m.user_id),
+      followBusy: followMutation.isPending || unfollowMutation.isPending,
+      toggleFollow: () =>
+        followingIds.has(m.user_id)
+          ? unfollowMutation.mutate(m.user_id)
+          : followMutation.mutate(m.user_id),
     };
   });
 
@@ -1363,6 +1726,7 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       setWsError(null);
       setWsFieldErrors({});
       setPage('projects');
+      toast.success(`Workspace «${w.name}» создан`);
     },
     onError: (err) => {
       const parsed = parseApiError(err);
@@ -1400,6 +1764,7 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       setProjFieldErrors({});
       setProject(p.id);
       setPage('issues');
+      toast.success(`Проект «${p.name}» создан`);
     },
     onError: (err) => {
       const parsed = parseApiError(err);
@@ -1435,8 +1800,13 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       }
       setDeleteTarget(null);
       setDeleteError(null);
+      toast.success('Проект удалён');
     },
-    onError: (err) => setDeleteError(parseApiError(err).message),
+    onError: (err) => {
+      const msg = parseApiError(err).message;
+      setDeleteError(msg);
+      toast.error(`Не удалось удалить проект: ${msg}`);
+    },
   });
   const removeProject = (id: string, name: string) => {
     setDeleteError(null);
@@ -1455,8 +1825,13 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       setWorkspace(null);
       setPage('home');
       await qc.invalidateQueries({ queryKey: ['workspaces'] });
+      toast.success('Workspace удалён');
     },
-    onError: (err) => setDeleteWsError(parseApiError(err).message),
+    onError: (err) => {
+      const msg = parseApiError(err).message;
+      setDeleteWsError(msg);
+      toast.error(`Не удалось удалить workspace: ${msg}`);
+    },
   });
 
   // ---- sidebar nav ----
@@ -1465,7 +1840,7 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
     return {
       label: n.label,
       icon: <Icon name={n.icon} />,
-      badge: null as string | null,
+      badge: (n.page === 'inbox' && unreadCount > 0 ? String(unreadCount) : null) as string | null,
       color: active ? 'var(--text-primary)' : 'var(--text-secondary)',
       weight: active ? 600 : 450,
       bg: active ? 'var(--accent-subtle)' : 'transparent',
@@ -1492,14 +1867,17 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
     };
   });
 
-  // ---- your work ----
-  const myWork = issuesData.filter((i) => i.assignees.includes('al'));
+  // ---- your work / dashboard (реальные данные по всем проектам воркспейса) ----
+  const groupOf = (iss: ApiIssue): string | undefined => homeStateMap[iss.state_id]?.group;
+  // Все МОИ задачи (назначенные на меня), включая закрытые — для статистики.
+  const myWork = homeAllIssues.filter(isMine);
+  const myCreated = homeAllIssues.filter((i) => !!user && i.created_by_id === user.id);
   const workload = {
-    backlog: myWork.filter((i) => i.state === 'backlog').length,
-    notStarted: myWork.filter((i) => i.state === 'todo').length,
-    workingOn: myWork.filter((i) => i.state === 'prog' || i.state === 'review').length,
-    completed: myWork.filter((i) => i.state === 'done').length,
-    canceled: 0,
+    backlog: myWork.filter((i) => groupOf(i) === 'backlog').length,
+    notStarted: myWork.filter((i) => groupOf(i) === 'unstarted').length,
+    workingOn: myWork.filter((i) => groupOf(i) === 'started').length,
+    completed: myWork.filter((i) => groupOf(i) === 'completed').length,
+    canceled: myWork.filter((i) => groupOf(i) === 'cancelled').length,
   };
   const priorityOrder: [PriorityId, string][] = [
     ['urgent', 'Urgent'],
@@ -1547,8 +1925,37 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
   const donutBg = `conic-gradient(${stops})`;
 
   const assignedCount = myWork.length;
-  const createdCount = 0;
-  const subscribedCount = assignedCount + 3;
+  const createdCount = myCreated.length;
+  const completedCount = workload.completed;
+  // Просрочено: срок в прошлом и задача ещё не закрыта.
+  const myOverdue = myWork.filter((i) => {
+    const d = dueOf(i);
+    return d && d.over && !isDone(i);
+  });
+  const overdueCount = myOverdue.length;
+
+  // Completion ring: доля закрытых среди моих задач.
+  const myClosed = workload.completed + workload.canceled;
+  const completionPct = myWork.length ? Math.round((myClosed / myWork.length) * 100) : 0;
+  const completionLabel = `${myClosed}/${myWork.length} closed`;
+
+  // Прогресс по проектам (по всем задачам проекта, не только моим).
+  const projectProgress = projectsData
+    .map((p, i) => {
+      const items = homeAllIssues.filter((it) => it.project_id === p.id);
+      const total = items.length;
+      const done = items.filter((it) => groupOf(it) === 'completed').length;
+      return {
+        id: p.id,
+        name: p.name,
+        identifier: p.identifier,
+        color: projectColor(i),
+        total,
+        done,
+        pct: total ? Math.round((done / total) * 100) : 0,
+      };
+    })
+    .filter((p) => p.total > 0);
 
   const projectsGrid = projectsData.map((p, i) => {
     const dot = projectColor(i);
@@ -1606,7 +2013,9 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
             ? 'Projects'
             : page === 'inbox'
               ? 'Inbox'
-              : page === 'wiki'
+              : page === 'chat'
+                ? 'Chat'
+                : page === 'wiki'
                 ? 'Wiki'
                 : page === 'ai'
                   ? 'AI Assistant'
@@ -1690,12 +2099,67 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       email: user?.email ?? '',
       role: cap(myRole),
       initials: user ? initialsOf(user.display_name) : '··',
-      avatarUrl: user?.avatar_url ?? null,
+      avatarUrl: resolveMediaUrl(user?.avatar_url),
     },
+
+    // ---- профиль-модалка: аватар + подписки ----
+    profileOpen,
+    openProfile: () => {
+      setProfileOpen(true);
+      setProfileTab('following');
+      setWsMenuOpen(false);
+    },
+    closeProfile: () => setProfileOpen(false),
+    profileTab,
+    setProfileTab: (t: 'following' | 'followers') => setProfileTab(t),
+    uploadAvatar: (file: File) => uploadAvatarMutation.mutate(file),
+    avatarUploading: uploadAvatarMutation.isPending,
+    deleteAvatar: () => deleteAvatarMutation.mutate(),
+    avatarDeleting: deleteAvatarMutation.isPending,
+    hasAvatar: !!user?.avatar_url,
+    followingCount: followingQ.data?.length ?? 0,
+    followersCount: followersQ.data?.length ?? 0,
+    followingLoading: followingQ.isLoading,
+    followersLoading: followersQ.isLoading,
+    followingList: (followingQ.data ?? []).map(toBrief),
+    followersList: (followersQ.data ?? []).map(toBrief),
+
+    // ---- чат ----
+    chatPeople,
+    chatLoadingPeople: chatsQ.isLoading || followingQ.isLoading || followersQ.isLoading,
+    chatHasSelected: !!selectedChatId,
+    chatHeader,
+    chatMessages,
+    chatMessagesLoading: !!selectedChatId && messagesQ.isLoading,
+    chatDraft,
+    onChatDraft: (v: string) => setChatDraft(v),
+    submitChatMessage,
+    chatSending: sendMessageMutation.isPending,
+    startAudioCall: () => startCallMutation.mutate('audio'),
+    startVideoCall: () => startCallMutation.mutate('video'),
+    chatCalling: startCallMutation.isPending,
+    sendVoice: (blob: Blob, duration: number) => sendVoiceMutation.mutate({ blob, duration }),
+    voiceSending: sendVoiceMutation.isPending,
+    closeChatThread: () => setSelectedChatId(null),
 
     // текущий воркспейс/проект (реальные данные)
     workspaceName: currentWs?.name ?? 'Workspace',
     workspaceInitial: (currentWs?.name ?? '?').trim().charAt(0).toUpperCase() || '?',
+    // Список всех воркспейсов пользователя для переключателя в дропдауне.
+    workspaceSwitcher: workspaces.map((w) => ({
+      slug: w.slug,
+      name: w.name,
+      initial: (w.name || '?').trim().charAt(0).toUpperCase() || '?',
+      isCurrent: w.slug === currentWs?.slug,
+      switch: () => {
+        if (w.slug !== currentWs?.slug) {
+          setProject(null);
+          setWorkspace(w.slug);
+          setPage('home');
+        }
+        setWsMenuOpen(false);
+      },
+    })),
     currentProjectName: currentProject?.name ?? projectsData[0]?.name ?? 'Project',
     currentProjectDot: projectColor(currentProjectIdx < 0 ? 0 : currentProjectIdx),
 
@@ -1716,14 +2180,20 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
     onInviteEmail: (e: React.ChangeEvent<HTMLInputElement>) => {
       setInviteEmail(e.target.value);
       setInvitePicked(false);
+      setInvitePickedUserId(null);
     },
+    // Выбран зарегистрированный юзер → кнопка «Add», иначе «Invite» (по email-ссылке).
+    inviteIsDirectAdd: !!invitePickedUserId,
     inviteSuggestions,
     inviteRole,
     setInviteRole: (r: WsRole) => setInviteRole(r),
     submitInvite,
-    inviteSubmitting: inviteMutation.isPending,
+    inviteSubmitting: inviteMutation.isPending || addMemberMutation.isPending,
     inviteError,
     inviteNotice,
+    inviteLink,
+    inviteLinkCopied,
+    copyInviteLink,
     membersList,
     membersLoading: membersQ.isLoading,
 
@@ -1899,6 +2369,7 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
     isProjectPage: page === 'issues',
     isStandardSidebar: page === 'home' || page === 'yourwork' || page === 'issues' || page === 'projects' || page === 'inbox',
     isWikiPage: page === 'wiki',
+    isChatPage: page === 'chat',
     isAiPage: page === 'ai',
     isSettingsPage: page === 'settings',
     goHome: () => setPage('home'),
@@ -1930,8 +2401,17 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
     homeLoading,
     homeAssignedRows,
     homeDueSoonRows,
+    homeOverdueRows,
     homeAssignedCount: homeAssignedRows.length,
     homeDueSoonCount: homeDueSoonRows.length,
+    homeOverdueCount: homeOverdueRows.length,
+    // KPI-плитки Home (реальные)
+    homeStats: {
+      assigned: homeMine.length,
+      dueSoon: homeDueSoonRows.length,
+      overdue: homeOverdueRows.length,
+      completed: workload.completed,
+    },
     today,
 
     // ---- AI-помощник (чат) ----
@@ -1962,13 +2442,20 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
     priorityAxis,
     donutBg,
     stateCats,
+    stateTotal,
     assignedCount,
     createdCount,
-    subscribedCount,
+    completedCount,
+    overdueCount,
     workload,
+    // дашборд: completion ring + прогресс по проектам (общее для Home и Your work)
+    completionPct,
+    completionLabel,
+    projectProgress,
 
     // projects
     projectsGrid,
+    projectsLoading: inApp && !!currentWs && projectsQ.isLoading,
 
     // skeleton
     skeletonGroups: [

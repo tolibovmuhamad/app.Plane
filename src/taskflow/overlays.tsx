@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useTF } from './context';
-import { FocusInput, HButton, HDiv } from './primitives';
+import { FocusInput, HButton, HDiv, TFSelect } from './primitives';
 
 export function IssueDetail(): JSX.Element | null {
   const tf = useTF();
@@ -327,18 +327,23 @@ export function InviteMembers(): JSX.Element | null {
                 </div>
               )}
             </div>
-            <select value={tf.inviteRole} onChange={(e) => tf.setInviteRole(e.target.value as 'admin' | 'member' | 'guest')} style={roleSelect}>
-              <option value="admin">Admin</option>
-              <option value="member">Member</option>
-              <option value="guest">Guest</option>
-            </select>
+            <TFSelect
+              value={tf.inviteRole}
+              onChange={(v) => tf.setInviteRole(v as 'admin' | 'member' | 'guest')}
+              style={roleSelect}
+              options={[
+                { value: 'admin', label: 'Admin' },
+                { value: 'member', label: 'Member' },
+                { value: 'guest', label: 'Guest' },
+              ]}
+            />
             <HButton
               type="submit"
               disabled={tf.inviteSubmitting || !tf.inviteEmail.trim()}
               style={{ height: '38px', padding: '0 16px', border: 'none', borderRadius: '8px', background: 'var(--accent)', color: '#fff', fontSize: '13px', fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', opacity: tf.inviteSubmitting || !tf.inviteEmail.trim() ? 0.6 : 1, transition: 'background .14s' }}
               hoverStyle={{ background: 'var(--accent-hover)' }}
             >
-              {tf.inviteSubmitting ? 'Inviting…' : 'Invite'}
+              {tf.inviteSubmitting ? (tf.inviteIsDirectAdd ? 'Adding…' : 'Inviting…') : tf.inviteIsDirectAdd ? 'Add' : 'Invite'}
             </HButton>
           </form>
         ) : (
@@ -348,6 +353,24 @@ export function InviteMembers(): JSX.Element | null {
         )}
         {tf.inviteError && <div style={{ padding: '0 18px 6px', fontSize: '12.5px', color: '#EF4444' }}>{tf.inviteError}</div>}
         {tf.inviteNotice && <div style={{ padding: '0 18px 6px', fontSize: '12.5px', color: '#22C55E' }}>{tf.inviteNotice}</div>}
+        {tf.inviteLink && (
+          <div style={{ display: 'flex', gap: '8px', padding: '2px 18px 12px', alignItems: 'center' }}>
+            <input
+              readOnly
+              value={tf.inviteLink}
+              onFocus={(e) => e.currentTarget.select()}
+              style={{ flex: 1, height: '34px', padding: '0 10px', background: 'var(--bg-app)', border: '1px solid var(--border-strong)', borderRadius: '8px', color: 'var(--text-secondary)', fontSize: '12px', fontFamily: 'var(--font-mono, monospace)', outline: 'none', boxSizing: 'border-box' }}
+            />
+            <HButton
+              type="button"
+              onClick={tf.copyInviteLink}
+              style={{ height: '34px', padding: '0 14px', border: '1px solid var(--border-strong)', borderRadius: '8px', background: tf.inviteLinkCopied ? 'rgba(34,197,94,.14)' : 'transparent', color: tf.inviteLinkCopied ? '#22C55E' : 'var(--text-primary)', fontSize: '12.5px', fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all .14s' }}
+              hoverStyle={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+            >
+              {tf.inviteLinkCopied ? 'Скопировано ✓' : 'Копировать ссылку'}
+            </HButton>
+          </div>
+        )}
 
         <div style={{ borderTop: '1px solid var(--border)', maxHeight: '46vh', overflowY: 'auto', padding: '8px' }}>
           <div style={{ padding: '8px 10px 6px', fontSize: '11px', fontWeight: 600, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
@@ -370,13 +393,39 @@ export function InviteMembers(): JSX.Element | null {
                 </div>
                 <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</div>
               </div>
+              {!m.isSelf && (
+                m.isFollowing ? (
+                  <HButton
+                    onClick={m.toggleFollow}
+                    disabled={m.followBusy}
+                    style={{ height: '28px', padding: '0 11px', border: '1px solid var(--border-strong)', borderRadius: '7px', background: 'transparent', color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer', flexShrink: 0, transition: 'all .14s' }}
+                    hoverStyle={{ borderColor: 'rgba(239,68,68,.4)', color: '#EF4444' }}
+                  >
+                    Following
+                  </HButton>
+                ) : (
+                  <HButton
+                    onClick={m.toggleFollow}
+                    disabled={m.followBusy}
+                    style={{ height: '28px', padding: '0 12px', border: 'none', borderRadius: '7px', background: 'var(--accent)', color: '#fff', fontSize: '12px', fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', flexShrink: 0, transition: 'background .14s' }}
+                    hoverStyle={{ background: 'var(--accent-hover)' }}
+                  >
+                    Follow
+                  </HButton>
+                )
+              )}
               {m.canEdit ? (
                 <>
-                  <select value={m.role} onChange={(e) => m.setRole(e.target.value as 'admin' | 'member' | 'guest')} style={roleSelectSmall}>
-                    <option value="admin">Admin</option>
-                    <option value="member">Member</option>
-                    <option value="guest">Guest</option>
-                  </select>
+                  <TFSelect
+                    value={m.role}
+                    onChange={(v) => m.setRole(v as 'admin' | 'member' | 'guest')}
+                    style={roleSelectSmall}
+                    options={[
+                      { value: 'admin', label: 'Admin' },
+                      { value: 'member', label: 'Member' },
+                      { value: 'guest', label: 'Guest' },
+                    ]}
+                  />
                   <HButton onClick={m.remove} title="Remove" style={removeBtn} hoverStyle={{ background: 'rgba(239,68,68,.12)', color: '#EF4444', borderColor: 'rgba(239,68,68,.4)' }}>
                     <svg width="13" height="13" viewBox="0 0 16 16" fill="none">
                       <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" />
@@ -760,23 +809,21 @@ export function CreateIssue(): JSX.Element | null {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
             <div>
               <label style={label}>Status</label>
-              <select value={tf.issueStateId} onChange={(e) => tf.setIssueStateId(e.target.value)} style={selectStyle}>
-                {tf.issueStateOptions.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
+              <TFSelect
+                value={tf.issueStateId}
+                onChange={(v) => tf.setIssueStateId(v)}
+                style={selectStyle}
+                options={tf.issueStateOptions.map((s) => ({ value: s.id, label: s.name }))}
+              />
             </div>
             <div>
               <label style={label}>Priority</label>
-              <select value={tf.issuePriority} onChange={(e) => tf.setIssuePriority(e.target.value)} style={selectStyle}>
-                {tf.issuePriorityOptions.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.label}
-                  </option>
-                ))}
-              </select>
+              <TFSelect
+                value={tf.issuePriority}
+                onChange={(v) => tf.setIssuePriority(v)}
+                style={selectStyle}
+                options={tf.issuePriorityOptions.map((p) => ({ value: p.id, label: p.label }))}
+              />
             </div>
           </div>
           {tf.issueError && <div style={{ fontSize: '12.5px', color: '#EF4444' }}>{tf.issueError}</div>}
@@ -863,23 +910,23 @@ export function ProjectMembers(): JSX.Element | null {
         {tf.canManageProjectMembers ? (
           canAdd ? (
             <form onSubmit={tf.submitAddProjMember} style={{ display: 'flex', gap: '8px', padding: '16px 18px 6px' }}>
-              <select
+              <TFSelect
                 value={tf.pmUserId}
-                onChange={(e) => tf.setPmUserId(e.target.value)}
+                onChange={(v) => tf.setPmUserId(v)}
+                placeholder="Select a member…"
                 style={{ flex: 1, height: '38px', padding: '0 10px', background: 'var(--bg-app)', border: '1px solid var(--border-strong)', borderRadius: '8px', color: 'var(--text-primary)', fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}
-              >
-                <option value="">Select a member…</option>
-                {tf.addableWsMembers.map((m) => (
-                  <option key={m.userId} value={m.userId}>
-                    {m.name}{m.email ? ` · ${m.email}` : ''}
-                  </option>
-                ))}
-              </select>
-              <select value={tf.pmRole} onChange={(e) => tf.setPmRole(e.target.value as 'admin' | 'member' | 'viewer')} style={roleSelect}>
-                <option value="admin">Admin</option>
-                <option value="member">Member</option>
-                <option value="viewer">Viewer</option>
-              </select>
+                options={tf.addableWsMembers.map((m) => ({ value: m.userId, label: `${m.name}${m.email ? ` · ${m.email}` : ''}` }))}
+              />
+              <TFSelect
+                value={tf.pmRole}
+                onChange={(v) => tf.setPmRole(v as 'admin' | 'member' | 'viewer')}
+                style={roleSelect}
+                options={[
+                  { value: 'admin', label: 'Admin' },
+                  { value: 'member', label: 'Member' },
+                  { value: 'viewer', label: 'Viewer' },
+                ]}
+              />
               <HButton
                 type="submit"
                 disabled={tf.addingProjMember || !tf.pmUserId}

@@ -1,8 +1,8 @@
-import type { CSSProperties } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { useEffect, useRef } from 'react';
 import { useTF } from './context';
 import type { IssueRow } from './useTaskFlow';
-import { HButton, HDiv } from './primitives';
+import { HButton, HDiv, TFSelect } from './primitives';
 import { Icon, WikiStackIcon, WikiStickyIcon } from './icons';
 
 function shimmer(w: string, h: string, radius: string): CSSProperties {
@@ -89,53 +89,7 @@ function IssuesToolbar(): JSX.Element {
         padding: '0 16px',
       }}
     >
-      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, flexWrap: 'wrap' }}>
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px',
-            height: '26px',
-            padding: '0 9px',
-            background: 'var(--accent-subtle)',
-            border: '1px solid rgba(99,102,241,.35)',
-            borderRadius: '6px',
-            fontSize: '12px',
-            color: '#a5a8f5',
-          }}
-        >
-          <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-            <path d="M2 3h12M4 8h8M6 13h4" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" />
-          </svg>
-          Priority: High, Urgent
-          <svg width="11" height="11" viewBox="0 0 16 16" fill="none" style={{ cursor: 'pointer', opacity: 0.7 }}>
-            <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" />
-          </svg>
-        </div>
-        <HButton
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '5px',
-            height: '26px',
-            padding: '0 9px',
-            background: 'transparent',
-            border: '1px dashed var(--border-strong)',
-            borderRadius: '6px',
-            fontSize: '12px',
-            color: 'var(--text-secondary)',
-            fontFamily: 'inherit',
-            cursor: 'pointer',
-            transition: 'all .14s',
-          }}
-          hoverStyle={{ color: 'var(--text-primary)', borderColor: 'var(--text-muted)' }}
-        >
-          <svg width="11" height="11" viewBox="0 0 16 16" fill="none">
-            <path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" />
-          </svg>
-          Add filter
-        </HButton>
-      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, flexWrap: 'wrap' }} />
       <div
         style={{
           display: 'flex',
@@ -523,45 +477,73 @@ export function HomePage(): JSX.Element {
     fontSize: '13px',
     background: 'transparent',
   };
+  const listBlock = (rows: IssueRow[], count: number, empty: string) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
+      {tf.homeLoading && count === 0 ? (
+        [0, 1, 2].map((i) => (
+          <div key={i} style={{ ...rowStyle, cursor: 'default', gap: '12px' }}>
+            <div style={shimmer('16px', '16px', '4px')} />
+            <div style={shimmer('45%', '12px', '4px')} />
+            <div style={{ flex: 1 }} />
+            <div style={shimmer('54px', '12px', '4px')} />
+          </div>
+        ))
+      ) : count === 0 ? (
+        <div style={emptyStyle}>{empty}</div>
+      ) : (
+        rows.map((issue) => (
+          <HDiv key={issue.key} onClick={issue.open} style={rowStyle} hoverStyle={rowHover}>
+            <IssueLine row={issue} card />
+          </HDiv>
+        ))
+      )}
+    </div>
+  );
+  const sectionHead = (label: string, count: number, color?: string) => (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+      <span style={{ ...uppercaseLabel, color: color ?? (uppercaseLabel.color as string) }}>{label}</span>
+      <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: MONO }}>{count}</span>
+    </div>
+  );
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '36px 40px 60px', maxWidth: '800px' }}>
+    <div style={{ flex: 1, overflowY: 'auto', padding: '36px 40px 60px', maxWidth: '980px' }}>
       <h1 style={{ margin: '0 0 6px', fontSize: '24px', fontWeight: 600, letterSpacing: '-.02em' }}>{tf.homeGreeting}</h1>
-      <p style={{ margin: '0 0 26px', color: 'var(--text-secondary)', fontSize: '13.5px' }}>{tf.today} — here's what's on your plate.</p>
+      <p style={{ margin: '0 0 24px', color: 'var(--text-secondary)', fontSize: '13.5px' }}>{tf.today} — here's what's on your plate.</p>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-        <span style={uppercaseLabel}>Assigned to you</span>
-        <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: "'Geist Mono',monospace" }}>{tf.homeAssignedCount}</span>
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '34px' }}>
-        {tf.homeLoading && tf.homeAssignedCount === 0 ? (
-          <div style={emptyStyle}>Loading…</div>
-        ) : tf.homeAssignedCount === 0 ? (
-          <div style={emptyStyle}>Nothing assigned to you right now.</div>
-        ) : (
-          tf.homeAssignedRows.map((issue) => (
-            <HDiv key={issue.key} onClick={issue.open} style={rowStyle} hoverStyle={rowHover}>
-              <IssueLine row={issue} card />
-            </HDiv>
-          ))
-        )}
+      {/* KPI-плитки */}
+      <div style={{ display: 'flex', gap: '13px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        <KpiTile label="Assigned to you" value={tf.homeStats.assigned} />
+        <KpiTile label="Due soon" value={tf.homeStats.dueSoon} />
+        <KpiTile label="Overdue" value={tf.homeStats.overdue} tone="danger" />
+        <KpiTile label="Completed" value={tf.homeStats.completed} tone="success" />
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-        <span style={uppercaseLabel}>Due soon</span>
-        <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontFamily: "'Geist Mono',monospace" }}>{tf.homeDueSoonCount}</span>
+      {/* Дашборд: кольцо завершённости + прогресс по проектам */}
+      <div style={{ display: 'flex', gap: '16px', marginBottom: '34px', flexWrap: 'wrap' }}>
+        <DashCard title="Your completion">
+          <CompletionRing pct={tf.completionPct} label="Tasks closed" sub={tf.completionLabel} />
+        </DashCard>
+        <DashCard title="Projects progress">
+          <ProjectProgressList items={tf.projectProgress} />
+        </DashCard>
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '7px' }}>
-        {tf.homeLoading && tf.homeDueSoonCount === 0 ? (
-          <div style={emptyStyle}>Loading…</div>
-        ) : tf.homeDueSoonCount === 0 ? (
-          <div style={emptyStyle}>No upcoming due dates.</div>
-        ) : (
-          tf.homeDueSoonRows.map((issue) => (
-            <HDiv key={issue.key} onClick={issue.open} style={rowStyle} hoverStyle={rowHover}>
-              <IssueLine row={issue} card />
-            </HDiv>
-          ))
-        )}
+
+      {/* Просрочено — только если есть */}
+      {tf.homeOverdueCount > 0 && (
+        <div style={{ marginBottom: '34px' }}>
+          {sectionHead('Overdue', tf.homeOverdueCount, '#EF4444')}
+          {listBlock(tf.homeOverdueRows, tf.homeOverdueCount, '')}
+        </div>
+      )}
+
+      <div style={{ marginBottom: '34px' }}>
+        {sectionHead('Assigned to you', tf.homeAssignedCount)}
+        {listBlock(tf.homeAssignedRows, tf.homeAssignedCount, 'Nothing assigned to you right now.')}
+      </div>
+
+      <div>
+        {sectionHead('Due soon', tf.homeDueSoonCount)}
+        {listBlock(tf.homeDueSoonRows, tf.homeDueSoonCount, 'No upcoming due dates.')}
       </div>
     </div>
   );
@@ -630,7 +612,7 @@ export function InboxPage(): JSX.Element {
             </span>
             <div style={{ fontSize: '13.5px' }}>You're all caught up.</div>
             <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', textAlign: 'center', maxWidth: '360px', lineHeight: 1.6 }}>
-              When a teammate assigns you an issue, comments, or mentions you, it shows up here — open it to jump straight into that project.
+              When a teammate invites you to a project, assigns you an issue, comments, or mentions you, it shows up here.
             </div>
           </div>
         ) : (
@@ -658,6 +640,26 @@ export function InboxPage(): JSX.Element {
                   <span style={{ fontFamily: "'Geist Mono',monospace", color: 'var(--accent)' }}>{n.target}</span>
                 </div>
                 <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '3px' }}>{n.at}</div>
+                {n.isProjectInvite && (
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                    <HButton
+                      onClick={(e) => { e.stopPropagation(); n.accept?.(); }}
+                      disabled={n.inviteBusy}
+                      style={{ height: '30px', padding: '0 16px', border: 'none', borderRadius: '7px', background: 'var(--accent)', color: '#fff', fontSize: '12.5px', fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', opacity: n.inviteBusy ? 0.6 : 1, transition: 'background .14s' }}
+                      hoverStyle={{ background: 'var(--accent-hover)' }}
+                    >
+                      Принять
+                    </HButton>
+                    <HButton
+                      onClick={(e) => { e.stopPropagation(); n.decline?.(); }}
+                      disabled={n.inviteBusy}
+                      style={{ height: '30px', padding: '0 14px', border: '1px solid var(--border-strong)', borderRadius: '7px', background: 'transparent', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer', opacity: n.inviteBusy ? 0.6 : 1, transition: 'all .14s' }}
+                      hoverStyle={{ borderColor: 'var(--text-muted)', color: 'var(--text-primary)' }}
+                    >
+                      Отклонить
+                    </HButton>
+                  </div>
+                )}
               </div>
               {!n.isRead && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent)', flexShrink: 0, marginTop: '6px' }} />}
             </HDiv>
@@ -719,6 +721,92 @@ function WorkloadCard({ color, label, value }: { color: string; label: string; v
   );
 }
 
+const MONO = "'Geist Mono',monospace";
+
+/** KPI-плитка: крупное число + подпись; tone красит число (danger/success). */
+function KpiTile({ label, value, tone }: { label: string; value: number; tone?: 'default' | 'danger' | 'success' }): JSX.Element {
+  const color = tone === 'danger' && value > 0 ? '#EF4444' : tone === 'success' && value > 0 ? '#22C55E' : 'var(--text-primary)';
+  return (
+    <div style={{ flex: 1, minWidth: '148px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '15px 17px' }}>
+      <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '9px' }}>{label}</div>
+      <div style={{ fontSize: '27px', fontWeight: 600, lineHeight: 1, letterSpacing: '-.02em', color }}>{value}</div>
+    </div>
+  );
+}
+
+/** Кольцо завершённости: conic-gradient акцент → трек, число в центре. */
+function CompletionRing({ pct, label, sub }: { pct: number; label: string; sub: string }): JSX.Element {
+  const deg = Math.max(0, Math.min(100, pct)) * 3.6;
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '18px' }}>
+      <div
+        style={{
+          position: 'relative',
+          width: '108px',
+          height: '108px',
+          borderRadius: '50%',
+          background: `conic-gradient(var(--accent) ${deg}deg, var(--border-strong) ${deg}deg 360deg)`,
+          flexShrink: 0,
+        }}
+      >
+        <div style={{ position: 'absolute', inset: '13px', borderRadius: '50%', background: 'var(--bg-surface)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <span style={{ fontSize: '24px', fontWeight: 600, letterSpacing: '-.02em' }}>{pct}%</span>
+        </div>
+      </div>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '4px' }}>{label}</div>
+        <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', fontFamily: MONO }}>{sub}</div>
+      </div>
+    </div>
+  );
+}
+
+interface ProjectProgressItem {
+  id: string;
+  name: string;
+  identifier: string;
+  color: string;
+  total: number;
+  done: number;
+  pct: number;
+}
+
+/** Горизонтальные прогресс-бары по проектам (цвет = проект, длина = % готовности). */
+function ProjectProgressList({ items }: { items: ProjectProgressItem[] }): JSX.Element {
+  if (items.length === 0) {
+    return <div style={{ fontSize: '13px', color: 'var(--text-muted)' }}>No issues yet.</div>;
+  }
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {items.map((p) => (
+        <div key={p.id}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '2.5px', background: p.color, flexShrink: 0 }} />
+              <span style={{ fontSize: '12.5px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</span>
+            </span>
+            <span style={{ fontSize: '11.5px', color: 'var(--text-muted)', fontFamily: MONO, flexShrink: 0, marginLeft: '10px' }}>
+              {p.done}/{p.total} · {p.pct}%
+            </span>
+          </div>
+          <div style={{ height: '7px', borderRadius: '4px', background: 'var(--border)', overflow: 'hidden' }}>
+            <div style={{ height: '100%', width: `${p.pct}%`, background: p.color, borderRadius: '4px', transition: 'width .3s ease-out' }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DashCard({ title, children }: { title: string; children: ReactNode }): JSX.Element {
+  return (
+    <div style={{ flex: 1, minWidth: '300px', background: 'var(--bg-surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '18px 20px' }}>
+      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '16px' }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
 export function YourWorkPage(): JSX.Element {
   const tf = useTF();
   return (
@@ -729,21 +817,22 @@ export function YourWorkPage(): JSX.Element {
         </span>
         <span style={{ fontSize: '16px', fontWeight: 600 }}>Your work</span>
       </div>
-      <div style={{ display: 'flex', gap: '22px', padding: '0 32px', borderBottom: '1px solid var(--border)' }}>
-        <span style={{ padding: '12px 0', fontSize: '13.5px', fontWeight: 600, color: 'var(--accent)', borderBottom: '2px solid var(--accent)' }}>Summary</span>
-        {['Assigned', 'Created', 'Subscribed', 'Activity'].map((t) => (
-          <span key={t} style={{ padding: '12px 0', fontSize: '13.5px', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-            {t}
-          </span>
-        ))}
-      </div>
-
       <div style={{ maxWidth: '900px', padding: '28px 32px 60px' }}>
         <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '14px' }}>Overview</div>
-        <div style={{ display: 'flex', gap: '14px', marginBottom: '36px', flexWrap: 'wrap' }}>
-          <StatCard icon="newpage" label="Work items created" value={tf.createdCount} />
-          <StatCard icon="personCircle" label="Work items assigned" value={tf.assignedCount} />
-          <StatCard icon="briefcase" label="Work items subscribed" value={tf.subscribedCount} />
+        <div style={{ display: 'flex', gap: '14px', marginBottom: '20px', flexWrap: 'wrap' }}>
+          <StatCard icon="personCircle" label="Assigned to you" value={tf.assignedCount} />
+          <StatCard icon="newpage" label="Created by you" value={tf.createdCount} />
+          <StatCard icon="briefcase" label="Completed" value={tf.completedCount} />
+        </div>
+
+        {/* Дашборд: кольцо завершённости + прогресс по проектам */}
+        <div style={{ display: 'flex', gap: '16px', marginBottom: '36px', flexWrap: 'wrap' }}>
+          <DashCard title="Your completion">
+            <CompletionRing pct={tf.completionPct} label="Tasks closed" sub={tf.completionLabel} />
+          </DashCard>
+          <DashCard title="Projects progress">
+            <ProjectProgressList items={tf.projectProgress} />
+          </DashCard>
         </div>
 
         <div style={{ fontSize: '15px', fontWeight: 600, marginBottom: '14px' }}>Workload</div>
@@ -848,7 +937,20 @@ export function ProjectsPage(): JSX.Element {
         </HButton>
       </div>
       <div style={{ padding: '28px 32px', display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
-        {tf.projectsGrid.length === 0 && (
+        {tf.projectsLoading && tf.projectsGrid.length === 0 && (
+          [0, 1, 2].map((i) => (
+            <div key={i} style={{ width: '270px', border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden', background: 'var(--bg-surface)' }}>
+              <div style={shimmer('100%', '110px', '0')} />
+              <div style={{ padding: '14px 16px 16px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={shimmer('60%', '13px', '4px')} />
+                <div style={shimmer('40px', '11px', '4px')} />
+                <div style={shimmer('80%', '12px', '4px')} />
+                <div style={shimmer('70px', '22px', '5px')} />
+              </div>
+            </div>
+          ))
+        )}
+        {!tf.projectsLoading && tf.projectsGrid.length === 0 && (
           <div style={{ width: '100%', padding: '56px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', border: '1px dashed var(--border)', borderRadius: '12px', color: 'var(--text-muted)' }}>
             <div style={{ fontSize: '13.5px' }}>{tf.hasWorkspace ? 'No projects yet.' : 'Create a workspace to get started.'}</div>
             <HButton
@@ -1036,15 +1138,12 @@ export function AiPage(): JSX.Element {
             />
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
               <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Тон</span>
-              <select
+              <TFSelect
                 value={tf.aiTone}
-                onChange={(e) => tf.setAiTone(e.target.value as 'professional' | 'friendly' | 'detailed' | 'short')}
+                onChange={(v) => tf.setAiTone(v as 'professional' | 'friendly' | 'detailed' | 'short')}
                 style={{ height: '30px', padding: '0 8px', background: 'var(--bg-app)', border: '1px solid var(--border-strong)', borderRadius: '8px', color: 'var(--text-secondary)', fontSize: '12.5px', fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}
-              >
-                {AI_TONES.map((t) => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
-                ))}
-              </select>
+                options={AI_TONES.map((t) => ({ value: t.id, label: t.label }))}
+              />
               {tf.aiHasMessages && (
                 <HButton
                   type="button"

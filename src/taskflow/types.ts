@@ -15,6 +15,7 @@ export type Page =
   | 'projects'
   | 'issues'
   | 'inbox'
+  | 'chat'
   | 'wiki'
   | 'ai'
   | 'settings';

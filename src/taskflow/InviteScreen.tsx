@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { useTF } from './context';
+import { Logo } from './Brand';
 import { AuthErrorBanner, AuthForm } from './AuthForm';
 import { HButton } from './primitives';
 
@@ -28,22 +29,7 @@ function InviteShell({ children }: { children: ReactNode }): JSX.Element {
       />
       <div style={{ position: 'relative', width: '100%', maxWidth: '408px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '28px' }}>
-          <div
-            style={{
-              width: '30px',
-              height: '30px',
-              borderRadius: '8px',
-              background: 'linear-gradient(150deg,var(--accent),#8B5CF6)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              boxShadow: '0 4px 14px -4px rgba(99,102,241,.7)',
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M3 8.5L6.5 12L13 4.5" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </div>
+          <Logo size={30} radius={8} />
           <span style={{ fontSize: '16px', fontWeight: 600, letterSpacing: '-.02em' }}>TaskFlow</span>
         </div>
         <div

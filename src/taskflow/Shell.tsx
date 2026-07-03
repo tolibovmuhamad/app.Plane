@@ -2,6 +2,8 @@ import type { CSSProperties, ReactNode } from 'react';
 import { useTF } from './context';
 import { HButton, HA, HDiv } from './primitives';
 import { Icon } from './icons';
+import { Logo } from './Brand';
+import { ChatSidebar } from './ChatPage';
 import { railConfig } from './data';
 import type { Page } from './types';
 
@@ -65,15 +67,22 @@ function UserFooter(): JSX.Element {
         gap: '9px',
       }}
     >
-      <UserAvatar size={26} font={11} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: '12.5px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {tf.me.name}
+      <HDiv
+        onClick={tf.openProfile}
+        title="Profile"
+        style={{ display: 'flex', alignItems: 'center', gap: '9px', flex: 1, minWidth: 0, padding: '3px 4px', margin: '-3px -4px', borderRadius: '8px', cursor: 'pointer', transition: 'background .14s' }}
+        hoverStyle={{ background: 'var(--bg-elevated)' }}
+      >
+        <UserAvatar size={26} font={11} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '12.5px', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {tf.me.name}
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {tf.me.role}
+          </div>
         </div>
-        <div style={{ fontSize: '11px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-          {tf.me.role}
-        </div>
-      </div>
+      </HDiv>
       <HButton
         onClick={tf.toggleTheme}
         title="Toggle theme"
@@ -124,23 +133,7 @@ function LeftRail(): JSX.Element {
         gap: '5px',
       }}
     >
-      <div
-        style={{
-          width: '30px',
-          height: '30px',
-          borderRadius: '8px',
-          background: 'linear-gradient(150deg,var(--accent),#8B5CF6)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-          marginBottom: '8px',
-        }}
-      >
-        <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-          <path d="M3 8.5L6.5 12L13 4.5" stroke="#fff" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </div>
+      <Logo size={30} radius={8} style={{ marginBottom: '8px' }} />
       {railItems.map((r) => (
         <HButton
           key={r.id}
@@ -220,6 +213,32 @@ function WorkspaceMenu(): JSX.Element {
           </div>
         </div>
         <div style={{ height: '1px', background: 'var(--border)', margin: '2px 0 6px' }} />
+        {tf.workspaceSwitcher.length > 1 && (
+          <>
+            <div style={{ padding: '4px 10px 4px', fontSize: '11px', fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+              Switch workspace
+            </div>
+            {tf.workspaceSwitcher.map((w) => (
+              <HDiv
+                key={w.slug}
+                onClick={w.switch}
+                style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '6px 10px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px', color: 'var(--text-primary)' }}
+                hoverStyle={{ background: 'var(--bg-surface)' }}
+              >
+                <div style={{ width: '22px', height: '22px', borderRadius: '6px', background: 'linear-gradient(150deg,var(--accent),#8B5CF6)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '11px', fontWeight: 600, color: '#fff', flexShrink: 0 }}>
+                  {w.initial}
+                </div>
+                <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{w.name}</span>
+                {w.isCurrent && (
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
+                    <path d="M3 8.5L6.5 12L13 4.5" stroke="var(--accent)" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                )}
+              </HDiv>
+            ))}
+            <div style={{ height: '1px', background: 'var(--border)', margin: '6px 0' }} />
+          </>
+        )}
         <HDiv onClick={tf.openSettings} style={item} hoverStyle={{ background: 'var(--bg-surface)' }}>
           <span style={iconBox}><Icon name="gear" /></span>
           Settings
@@ -684,7 +703,8 @@ function AiSidebar(): JSX.Element {
 function Sidebar(): JSX.Element {
   const tf = useTF();
   let inner: ReactNode;
-  if (tf.isWikiPage) inner = <WikiSidebar />;
+  if (tf.isChatPage) inner = <ChatSidebar />;
+  else if (tf.isWikiPage) inner = <WikiSidebar />;
   else if (tf.isAiPage) inner = <AiSidebar />;
   else if (tf.isSettingsPage) inner = <SettingsSidebar />;
   else inner = <StandardSidebar />;

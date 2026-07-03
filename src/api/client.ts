@@ -24,6 +24,11 @@ apiClient.interceptors.request.use((config) => {
   if (token) {
     config.headers.set('Authorization', `Bearer ${token}`);
   }
+  // Для FormData (загрузка файла) убираем JSON-заголовок инстанса — браузер сам
+  // выставит `multipart/form-data; boundary=...`, иначе тело не распарсится.
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    config.headers.delete('Content-Type');
+  }
   return config;
 });
 

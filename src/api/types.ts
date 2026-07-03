@@ -65,9 +65,9 @@ export interface Notification {
   workspace_id: string;
   recipient_id: string;
   actor_id: string;
-  type: 'issue_assigned' | 'comment_added' | 'mentioned';
-  issue_id: string;
-  entity_id: string;
+  type: 'issue_assigned' | 'comment_added' | 'mentioned' | 'project_invite_received' | 'project_member_added';
+  issue_id: string | null;
+  entity_id: string | null;
   is_read: boolean;
   read_at: string | null;
   created_at: string;
@@ -130,6 +130,7 @@ export interface ProjectMember {
   project_id: string;
   user_id: string;
   role: string;
+  status?: 'pending' | 'accepted' | 'declined';
   created_at: string;
   updated_at?: string;
   user: {

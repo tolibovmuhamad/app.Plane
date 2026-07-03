@@ -275,7 +275,7 @@ export const issuesRaw: Issue[] = [
 
 export const navConfig = [
   { id: 'home', label: 'Home', icon: 'home', page: 'home' },
-  { id: 'yourwork', label: 'Your work', icon: 'issues', page: 'yourwork' },
+  { id: 'inbox', label: 'Inbox', icon: 'inbox', page: 'inbox' },
   { id: 'projects', label: 'Projects', icon: 'grid', page: 'projects' },
 ] as const;
 
@@ -287,6 +287,7 @@ export const projectConfig = [
 
 export const railConfig = [
   { id: 'projects', label: 'Projects', icon: 'grid' },
+  { id: 'chat', label: 'Chat', icon: 'chat' },
   { id: 'wiki', label: 'Wiki', icon: 'wiki' },
   { id: 'ai', label: 'AI', icon: 'sparkle' },
   { id: 'settings', label: 'Settings', icon: 'gear' },
