@@ -16,4 +16,9 @@ export const workspacesApi = {
     const { data } = await apiClient.post<Workspace>('/workspaces', body);
     return data;
   },
+
+  /** DELETE /workspaces/:slug → 204. Только владелец воркспейса. */
+  remove: async (slug: string): Promise<void> => {
+    await apiClient.delete(`/workspaces/${slug}`);
+  },
 };

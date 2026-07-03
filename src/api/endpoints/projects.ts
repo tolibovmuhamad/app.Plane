@@ -19,4 +19,8 @@ export const projectsApi = {
     const { data } = await apiClient.post<Project>(`/workspaces/${workspaceSlug}/projects`, body);
     return data;
   },
+
+  remove: async (workspaceSlug: string, projectId: string): Promise<void> => {
+    await apiClient.delete(`/workspaces/${workspaceSlug}/projects/${projectId}`);
+  },
 };
