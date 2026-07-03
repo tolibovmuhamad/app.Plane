@@ -1119,8 +1119,14 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       isRead: n.is_read,
       canOpen: !!loc,
       open: () => openNotification(n),
-      accept: () => acceptProjectInviteMutation.mutate({ workspaceSlug: wsSlug, projectId: n.entity_id }),
-      decline: () => declineProjectInviteMutation.mutate({ workspaceSlug: wsSlug, projectId: n.entity_id }),
+      accept: () => {
+        acceptProjectInviteMutation.mutate({ workspaceSlug: wsSlug, projectId: n.entity_id });
+        if (!n.is_read) markReadMutation.mutate(n.id);
+      },
+      decline: () => {
+        declineProjectInviteMutation.mutate({ workspaceSlug: wsSlug, projectId: n.entity_id });
+        if (!n.is_read) markReadMutation.mutate(n.id);
+      },
     };
   });
 

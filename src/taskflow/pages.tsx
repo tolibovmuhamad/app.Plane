@@ -658,7 +658,7 @@ export function InboxPage(): JSX.Element {
                   <span style={{ fontFamily: "'Geist Mono',monospace", color: 'var(--accent)' }}>{n.target}</span>
                 </div>
                 <div style={{ fontSize: '11.5px', color: 'var(--text-muted)', marginTop: '3px' }}>{n.at}</div>
-                {n.type === 'project_invite_received' && !n.isRead && (
+                {(n.type === 'project_invite_received' || n.type === 'project_member_added') && !n.isRead && (
                   <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }} onClick={(e) => e.stopPropagation()}>
                     <button
                       onClick={n.accept}
