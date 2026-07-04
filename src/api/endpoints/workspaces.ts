@@ -17,6 +17,12 @@ export const workspacesApi = {
     return data;
   },
 
+  /** PATCH /workspaces/:slug → обновить имя/slug (admin+). */
+  update: async (slug: string, body: { name?: string; slug?: string }): Promise<Workspace> => {
+    const { data } = await apiClient.patch<Workspace>(`/workspaces/${slug}`, body);
+    return data;
+  },
+
   /** DELETE /workspaces/:slug → 204. Только владелец воркспейса. */
   remove: async (slug: string): Promise<void> => {
     await apiClient.delete(`/workspaces/${slug}`);

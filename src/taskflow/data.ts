@@ -299,7 +299,6 @@ export const settingsNav = [
   { id: 'billing', label: 'Billing and plans', icon: 'billing' },
   { id: 'imports', label: 'Imports', icon: 'imports' },
   { id: 'exports', label: 'Exports', icon: 'exports' },
-  { id: 'worklogs', label: 'Worklogs', icon: 'worklogs' },
   { id: 'identity', label: 'Identity', icon: 'identity' },
 ] as const;
 
