@@ -62,11 +62,15 @@ async function refreshTokens(): Promise<string> {
   return data.access_token;
 }
 
-/** Сессия мертва: чистим стор и уводим на /login. */
+/**
+ * Сессия мертва: чистим стор и уводим на экран входа.
+ * TaskFlow-приложение живёт на `/` (там же рендерится AuthScreen без сессии),
+ * поэтому уводим на `/`, а не на несуществующий роут `/login` → иначе 404.
+ */
 function handleSessionExpired() {
   useAuthStore.getState().clear();
-  if (window.location.pathname !== '/login') {
-    window.location.assign('/login');
+  if (window.location.pathname !== '/') {
+    window.location.assign('/');
   }
 }
 

@@ -1,6 +1,62 @@
 import type { CSSProperties } from 'react';
+import { useEffect, useState } from 'react';
 import { useTF } from './context';
 import { FocusInput, HButton, HDiv, TFSelect } from './primitives';
+
+/** Число-инпут, коммитит значение на blur/Enter (чтобы не слать PATCH на каждый ввод). */
+function NumberEdit({ value, onCommit }: { value: number; onCommit: (n: number | null) => void }): JSX.Element {
+  const [v, setV] = useState(String(value));
+  useEffect(() => setV(String(value)), [value]);
+  const commit = () => {
+    const n = v.trim() === '' ? null : Math.max(0, Math.round(Number(v)));
+    if (n !== value) onCommit(Number.isFinite(n as number) || n === null ? n : value);
+  };
+  return (
+    <input
+      value={v}
+      onChange={(e) => setV(e.target.value.replace(/[^0-9]/g, ''))}
+      onBlur={commit}
+      onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
+      style={{ width: '54px', height: '28px', padding: '0 8px', background: 'var(--bg-app)', border: '1px solid var(--border-strong)', borderRadius: '6px', color: 'var(--text-primary)', fontSize: '13px', fontFamily: "'Geist Mono',monospace", outline: 'none' }}
+    />
+  );
+}
+
+/** Мини-дропдаун «+ добавить» из списка вариантов. */
+function AddPicker({ label, options }: { label: string; options: { key: string; name: string; color?: string; add: () => void }[] }): JSX.Element | null {
+  const [open, setOpen] = useState(false);
+  if (options.length === 0) return null;
+  return (
+    <div style={{ position: 'relative' }}>
+      <HButton
+        onClick={() => setOpen((o) => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: '5px', height: '26px', padding: '0 9px', border: '1px dashed var(--border-strong)', borderRadius: '7px', background: 'transparent', color: 'var(--text-secondary)', fontSize: '12px', fontFamily: 'inherit', cursor: 'pointer', transition: 'all .14s' }}
+        hoverStyle={{ borderColor: 'var(--accent)', color: 'var(--accent)' }}
+      >
+        <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" /></svg>
+        {label}
+      </HButton>
+      {open && (
+        <>
+          <div onClick={() => setOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 10 }} />
+          <div style={{ position: 'absolute', top: '30px', left: 0, minWidth: '170px', maxHeight: '220px', overflowY: 'auto', background: 'var(--bg-elevated)', border: '1px solid var(--border-strong)', borderRadius: '9px', boxShadow: 'var(--shadow)', padding: '4px', zIndex: 11 }}>
+            {options.map((o) => (
+              <HDiv
+                key={o.key}
+                onClick={() => { o.add(); setOpen(false); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '7px 8px', borderRadius: '7px', cursor: 'pointer', fontSize: '13px' }}
+                hoverStyle={{ background: 'var(--bg-surface)' }}
+              >
+                {o.color && <span style={{ width: '9px', height: '9px', borderRadius: '2.5px', background: o.color, flexShrink: 0 }} />}
+                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{o.name}</span>
+              </HDiv>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export function IssueDetail(): JSX.Element | null {
   const tf = useTF();
@@ -185,44 +241,75 @@ export function IssueDetail(): JSX.Element | null {
 
             <div style={{ marginBottom: '18px' }}>
               <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Priority</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-                <span style={{ width: '15px', height: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{d.priorityIcon}</span>
-                {d.priorityLabel}
-              </div>
+              <TFSelect
+                value={d.priorityValue}
+                onChange={(v) => d.setPriority(v)}
+                style={{ width: '100%', height: '32px', padding: '0 10px', background: 'var(--bg-app)', border: '1px solid var(--border-strong)', borderRadius: '7px', color: 'var(--text-primary)', fontSize: '13px', fontFamily: 'inherit', cursor: 'pointer', outline: 'none' }}
+                options={[
+                  { value: 'none', label: 'No priority' },
+                  { value: 'low', label: 'Low' },
+                  { value: 'medium', label: 'Medium' },
+                  { value: 'high', label: 'High' },
+                  { value: 'urgent', label: 'Urgent' },
+                ]}
+              />
             </div>
 
             <div style={{ marginBottom: '18px' }}>
               <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Assignees</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', marginBottom: '8px' }}>
+                {d.assignees.length === 0 && <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Никто не назначен</span>}
                 {d.assignees.map((a, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '9px', fontSize: '13px' }}>
                     <div style={{ width: '22px', height: '22px', borderRadius: '50%', background: a.color, color: '#fff', fontSize: '9.5px', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {a.initials}
                     </div>
-                    {a.name}
+                    <span style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.name}</span>
+                    {a.userId && (
+                      <HButton onClick={() => d.assignedRemove(a.userId)} title="Убрать" style={{ width: '20px', height: '20px', border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '5px', flexShrink: 0 }} hoverStyle={{ background: 'var(--bg-app)', color: '#EF4444' }}>
+                        <svg width="11" height="11" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth={1.6} strokeLinecap="round" /></svg>
+                      </HButton>
+                    )}
                   </div>
                 ))}
               </div>
+              <AddPicker label="Добавить" options={d.assigneeChoices.map((c) => ({ key: c.userId, name: c.name, add: c.add }))} />
             </div>
 
-            {d.hasLabels && (
-              <div style={{ marginBottom: '18px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Labels</div>
-                <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>{d.labelPills}</div>
+            <div style={{ marginBottom: '18px' }}>
+              <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '8px' }}>Labels</div>
+              <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                {d.labelsCurrent.length === 0 && <span style={{ fontSize: '12.5px', color: 'var(--text-muted)' }}>Нет меток</span>}
+                {d.labelsCurrent.map((l) => (
+                  <span key={l.id} style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', height: '22px', padding: '0 5px 0 8px', borderRadius: '6px', background: 'var(--bg-app)', border: '1px solid var(--border)', fontSize: '11.5px' }}>
+                    <span style={{ width: '7px', height: '7px', borderRadius: '2px', background: l.color }} />
+                    {l.name}
+                    <HButton onClick={l.remove} title="Убрать" style={{ width: '15px', height: '15px', border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '3px' }} hoverStyle={{ color: '#EF4444' }}>
+                      <svg width="9" height="9" viewBox="0 0 16 16" fill="none"><path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" /></svg>
+                    </HButton>
+                  </span>
+                ))}
               </div>
-            )}
+              <AddPicker label="Добавить метку" options={d.labelChoices.map((l) => ({ key: l.id, name: l.name, color: l.color, add: l.add }))} />
+            </div>
 
             <div style={{ display: 'flex', gap: '22px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
               <div>
                 <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '6px' }}>Estimate</div>
-                <div style={{ fontSize: '13px', fontFamily: "'Geist Mono',monospace" }}>{d.est} pts</div>
-              </div>
-              {d.due && (
-                <div>
-                  <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '6px' }}>Due</div>
-                  <div style={{ fontSize: '13px', fontFamily: "'Geist Mono',monospace", color: d.dueColor }}>{d.due}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <NumberEdit value={d.est} onCommit={d.setEstimate} />
+                  <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>pts</span>
                 </div>
-              )}
+              </div>
+              <div>
+                <div style={{ fontSize: '11px', fontWeight: 600, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: '6px' }}>Due</div>
+                <input
+                  type="date"
+                  value={d.dueValue}
+                  onChange={(e) => d.setDue(e.target.value)}
+                  style={{ height: '28px', padding: '0 8px', background: 'var(--bg-app)', border: '1px solid var(--border-strong)', borderRadius: '6px', color: d.dueColor, fontSize: '12.5px', fontFamily: 'inherit', outline: 'none', colorScheme: 'dark' }}
+                />
+              </div>
             </div>
             <div style={{ paddingTop: '14px', marginTop: '14px', borderTop: '1px solid var(--border)', fontSize: '11.5px', color: 'var(--text-muted)' }}>
               Created {d.created}

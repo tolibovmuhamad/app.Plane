@@ -827,9 +827,14 @@ function TopHeader(): JSX.Element {
           </span>
         )}
       </HButton>
-      <div title={tf.me.name} style={{ cursor: 'pointer' }}>
+      <HDiv
+        onClick={tf.openProfile}
+        title={tf.me.name}
+        style={{ cursor: 'pointer', borderRadius: '50%', display: 'flex' }}
+        hoverStyle={{ opacity: 0.85 }}
+      >
         <UserAvatar size={28} font={11} />
-      </div>
+      </HDiv>
     </header>
   );
 }

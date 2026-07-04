@@ -1,9 +1,10 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTF } from './context';
 import type { IssueRow } from './useTaskFlow';
 import { HButton, HDiv, TFSelect } from './primitives';
 import { Icon, WikiStackIcon, WikiStickyIcon } from './icons';
+import { toast } from './toast';
 
 function shimmer(w: string, h: string, radius: string): CSSProperties {
   return {
@@ -1178,6 +1179,38 @@ export function AiPage(): JSX.Element {
   );
 }
 
+function EditField({
+  label,
+  value,
+  onChange,
+  disabled,
+  prefix,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+  prefix?: string;
+  placeholder?: string;
+}): JSX.Element {
+  return (
+    <div>
+      <label style={{ display: 'block', fontSize: '12px', fontWeight: 500, color: 'var(--text-secondary)', marginBottom: '6px' }}>{label}</label>
+      <div style={{ display: 'flex', alignItems: 'center', height: '38px', padding: '0 12px', background: disabled ? 'var(--bg-surface)' : 'var(--bg-app)', border: '1px solid var(--border-strong)', borderRadius: '6px' }}>
+        {prefix && <span style={{ fontSize: '13px', color: 'var(--text-muted)', flexShrink: 0 }}>{prefix}</span>}
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          disabled={disabled}
+          placeholder={placeholder}
+          style={{ flex: 1, minWidth: 0, height: '100%', border: 'none', background: 'transparent', color: 'var(--text-primary)', fontSize: '13px', fontFamily: 'inherit', outline: 'none' }}
+        />
+      </div>
+    </div>
+  );
+}
+
 function ReadonlyField({ label, value, muted, chevron }: { label: string; value: string; muted?: boolean; chevron?: boolean }): JSX.Element {
   return (
     <div>
@@ -1223,13 +1256,7 @@ export function SettingsPage(): JSX.Element {
 
         {section === 'general' && <GeneralSection />}
         {section === 'members' && <MembersSection />}
-        {section === 'billing' && (
-          <SettingsPlaceholder
-            icon="billing"
-            title="Billing and plans"
-            text="You're on the Free plan. Usage-based billing and plan upgrades will appear here once enabled for your workspace."
-          />
-        )}
+        {section === 'billing' && <BillingSection />}
         {section === 'imports' && (
           <SettingsPlaceholder
             icon="imports"
@@ -1244,20 +1271,7 @@ export function SettingsPage(): JSX.Element {
             text="Export your workspace data to CSV or JSON. Export jobs you request will be listed here."
           />
         )}
-        {section === 'worklogs' && (
-          <SettingsPlaceholder
-            icon="worklogs"
-            title="Worklogs"
-            text="Track time logged against issues across projects. Enable worklogs to start capturing time here."
-          />
-        )}
-        {section === 'identity' && (
-          <SettingsPlaceholder
-            icon="identity"
-            title="Identity and security"
-            text="Configure SSO, allowed email domains and session policy. Identity providers will be managed from this screen."
-          />
-        )}
+        {section === 'identity' && <IdentitySection />}
       </div>
     </div>
   );
@@ -1273,21 +1287,41 @@ function GeneralSection(): JSX.Element {
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: '18px', fontWeight: 600, letterSpacing: '-.01em', marginBottom: '4px' }}>{tf.workspaceName}</div>
-          <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '8px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }}>
+          <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '280px' }}>
             {tf.workspaceUrl}
           </div>
-          <span style={{ fontSize: '12.5px', color: 'var(--accent)', cursor: 'pointer', fontWeight: 500 }}>Upload logo</span>
         </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
-        <ReadonlyField label="Workspace name" value={tf.workspaceName} />
+        <EditField label="Workspace name" value={tf.generalName} onChange={tf.onGeneralName} disabled={!tf.canEditWorkspace} placeholder="Название" />
         <ReadonlyField label="Your role" value={tf.me.role} />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '26px' }}>
-        <ReadonlyField label="Workspace URL" value={tf.workspaceUrl} muted />
-        <ReadonlyField label="Workspace timezone" value="UTC" chevron />
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '18px' }}>
+        <EditField label="Workspace URL (slug)" value={tf.generalSlug} onChange={tf.onGeneralSlug} disabled={!tf.canEditWorkspace} prefix="taskflow.app/" placeholder="slug" />
+        <ReadonlyField label="Workspace timezone" value="UTC" />
       </div>
+
+      {tf.wsSettingsError && (
+        <div style={{ fontSize: '12.5px', color: '#EF4444', marginBottom: '14px' }}>{tf.wsSettingsError}</div>
+      )}
+
+      {tf.canEditWorkspace ? (
+        <div style={{ display: 'flex', marginBottom: '30px' }}>
+          <HButton
+            onClick={tf.saveWsSettings}
+            disabled={!tf.wsSettingsDirty || tf.wsSettingsSaving}
+            style={{ height: '36px', padding: '0 18px', border: 'none', borderRadius: '8px', background: 'var(--accent)', color: '#fff', fontSize: '13px', fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', opacity: !tf.wsSettingsDirty || tf.wsSettingsSaving ? 0.5 : 1, transition: 'background .14s' }}
+            hoverStyle={{ background: 'var(--accent-hover)' }}
+          >
+            {tf.wsSettingsSaving ? 'Сохранение…' : 'Сохранить изменения'}
+          </HButton>
+        </div>
+      ) : (
+        <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginBottom: '30px' }}>
+          Менять настройки workspace может только admin или owner.
+        </div>
+      )}
 
       {tf.isOwner && (
         <div style={{ border: '1px solid rgba(239,68,68,.35)', background: 'rgba(239,68,68,.06)', borderRadius: '12px', padding: '20px 22px', display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -1306,6 +1340,244 @@ function GeneralSection(): JSX.Element {
           </HButton>
         </div>
       )}
+    </>
+  );
+}
+
+// ─────────────────────────── BILLING ───────────────────────────
+
+interface Plan {
+  id: string;
+  name: string;
+  price: string;
+  period: string;
+  tagline: string;
+  features: string[];
+  current?: boolean;
+  accent?: boolean;
+}
+
+const PLANS: Plan[] = [
+  {
+    id: 'free',
+    name: 'Free',
+    price: '$0',
+    period: '/ навсегда',
+    tagline: 'Для небольших команд, которые только начинают.',
+    features: ['До 5 участников', 'Неограниченно задач', '2 активных проекта', 'Базовые доски и циклы', 'Сообщество-поддержка'],
+    current: true,
+  },
+  {
+    id: 'pro',
+    name: 'Pro',
+    price: '$8',
+    period: '/ участник в мес.',
+    tagline: 'Для растущих команд, которым нужна аналитика.',
+    features: ['Неограниченно участников', 'Неограниченно проектов', 'Аналитика и дашборды', 'Приоритетная поддержка', 'Гостевой доступ', 'История активности 1 год'],
+    accent: true,
+  },
+  {
+    id: 'business',
+    name: 'Business',
+    price: '$16',
+    period: '/ участник в мес.',
+    tagline: 'Для компаний с требованиями к безопасности.',
+    features: ['Всё из Pro', 'SSO / SAML', 'Аудит-логи', 'Роли и права по проектам', 'SLA 99.9%', 'Выделенный менеджер'],
+  },
+];
+
+function UsageBar({ label, used, total, unit }: { label: string; used: number; total: number; unit: string }): JSX.Element {
+  const pct = Math.min(100, Math.round((used / total) * 100));
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12.5px', marginBottom: '7px' }}>
+        <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+        <span style={{ fontFamily: "'Geist Mono',monospace", color: 'var(--text-muted)' }}>{used} / {total} {unit}</span>
+      </div>
+      <div style={{ height: '7px', borderRadius: '4px', background: 'var(--border)', overflow: 'hidden' }}>
+        <div style={{ height: '100%', width: `${pct}%`, background: pct > 85 ? '#EF4444' : 'var(--accent)', borderRadius: '4px' }} />
+      </div>
+    </div>
+  );
+}
+
+function BillingSection(): JSX.Element {
+  const tf = useTF();
+  return (
+    <>
+      {/* Текущий план */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '18px 20px', border: '1px solid var(--border)', borderRadius: '12px', background: 'var(--bg-surface)', marginBottom: '28px' }}>
+        <div style={{ width: '44px', height: '44px', borderRadius: '11px', background: 'var(--accent-subtle)', color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon name="billing" />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: '14px', fontWeight: 600 }}>Текущий план: <span style={{ color: 'var(--accent)' }}>Free</span></div>
+          <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', marginTop: '2px' }}>Следующее списание отсутствует — вы на бесплатном тарифе.</div>
+        </div>
+        <HButton
+          onClick={() => toast.info('Оплата подключится, когда биллинг включат для workspace')}
+          style={{ height: '34px', padding: '0 16px', border: 'none', borderRadius: '8px', background: 'var(--accent)', color: '#fff', fontSize: '12.5px', fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', flexShrink: 0 }}
+          hoverStyle={{ background: 'var(--accent-hover)' }}
+        >
+          Улучшить план
+        </HButton>
+      </div>
+
+      {/* Использование */}
+      <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '14px' }}>Использование в этом месяце</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '18px 20px', border: '1px solid var(--border)', borderRadius: '12px', marginBottom: '32px' }}>
+        <UsageBar label="Участники" used={tf.settingsMembersCount || 1} total={5} unit="" />
+        <UsageBar label="Активные проекты" used={2} total={2} unit="" />
+        <UsageBar label="Хранилище файлов" used={0.3} total={1} unit="GB" />
+      </div>
+
+      {/* Тарифы */}
+      <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '14px' }}>Тарифы</div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '14px' }}>
+        {PLANS.map((p) => (
+          <div
+            key={p.id}
+            style={{
+              border: `1px solid ${p.accent ? 'var(--accent)' : 'var(--border)'}`,
+              borderRadius: '12px',
+              padding: '20px 18px',
+              background: p.accent ? 'var(--accent-subtle)' : 'var(--bg-surface)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              position: 'relative',
+            }}
+          >
+            {p.accent && (
+              <span style={{ position: 'absolute', top: '-9px', left: '18px', fontSize: '10.5px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#fff', background: 'var(--accent)', padding: '2px 8px', borderRadius: '6px' }}>
+                Популярный
+              </span>
+            )}
+            <div>
+              <div style={{ fontSize: '15px', fontWeight: 600 }}>{p.name}</div>
+              <div style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '3px', minHeight: '32px' }}>{p.tagline}</div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px' }}>
+              <span style={{ fontSize: '26px', fontWeight: 700, letterSpacing: '-.02em' }}>{p.price}</span>
+              <span style={{ fontSize: '11.5px', color: 'var(--text-muted)' }}>{p.period}</span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '7px', flex: 1 }}>
+              {p.features.map((f) => (
+                <div key={f} style={{ display: 'flex', alignItems: 'flex-start', gap: '7px', fontSize: '12.5px', color: 'var(--text-secondary)' }}>
+                  <svg width="13" height="13" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: '2px', color: 'var(--accent)' }}>
+                    <path d="M3 8.5L6.5 12L13 4.5" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                  {f}
+                </div>
+              ))}
+            </div>
+            <HButton
+              onClick={() => (p.current ? undefined : toast.info(`Тариф «${p.name}» подключится, когда включат биллинг`))}
+              disabled={p.current}
+              style={{
+                height: '36px',
+                border: p.current ? '1px solid var(--border-strong)' : 'none',
+                borderRadius: '8px',
+                background: p.current ? 'transparent' : p.accent ? 'var(--accent)' : 'var(--bg-elevated)',
+                color: p.current ? 'var(--text-muted)' : p.accent ? '#fff' : 'var(--text-primary)',
+                fontSize: '12.5px',
+                fontWeight: 600,
+                fontFamily: 'inherit',
+                cursor: p.current ? 'default' : 'pointer',
+              }}
+              hoverStyle={p.current ? {} : { opacity: 0.9 }}
+            >
+              {p.current ? 'Текущий план' : `Перейти на ${p.name}`}
+            </HButton>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// ─────────────────────────── IDENTITY ───────────────────────────
+
+function Toggle({ on, onClick }: { on: boolean; onClick: () => void }): JSX.Element {
+  return (
+    <HButton
+      onClick={onClick}
+      style={{ width: '38px', height: '22px', borderRadius: '11px', border: 'none', background: on ? 'var(--accent)' : 'var(--border-strong)', cursor: 'pointer', position: 'relative', flexShrink: 0, transition: 'background .16s' }}
+      hoverStyle={{}}
+    >
+      <span style={{ position: 'absolute', top: '3px', left: on ? '19px' : '3px', width: '16px', height: '16px', borderRadius: '50%', background: '#fff', transition: 'left .16s' }} />
+    </HButton>
+  );
+}
+
+function IdentityRow({ title, desc, children }: { title: string; desc: string; children: ReactNode }): JSX.Element {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '16px 0', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: '13.5px', fontWeight: 600, marginBottom: '3px' }}>{title}</div>
+        <div style={{ fontSize: '12.5px', color: 'var(--text-muted)', lineHeight: 1.5 }}>{desc}</div>
+      </div>
+      <div style={{ flexShrink: 0 }}>{children}</div>
+    </div>
+  );
+}
+
+function IdentitySection(): JSX.Element {
+  const tf = useTF();
+  const [twoFA, setTwoFA] = useState(false);
+  const [ssoOnly, setSsoOnly] = useState(false);
+  const soon = () => toast.info('Скоро — управление безопасностью появится здесь');
+
+  const btn: CSSProperties = { height: '32px', padding: '0 13px', border: '1px solid var(--border-strong)', borderRadius: '7px', background: 'transparent', color: 'var(--text-secondary)', fontSize: '12.5px', fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer' };
+
+  return (
+    <>
+      <p style={{ margin: '0 0 24px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.7, maxWidth: '620px' }}>
+        Настройки безопасности вашей учётной записи и всего workspace. Здесь вы управляете входом,
+        двухфакторной аутентификацией, активными сессиями и корпоративным доступом (SSO). Мы рекомендуем
+        включить двухфакторную аутентификацию и, если у вас корпоративный домен, — вход только через SSO.
+      </p>
+
+      {/* Аккаунт */}
+      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '6px' }}>Аккаунт</div>
+      <div style={{ marginBottom: '28px' }}>
+        <IdentityRow title="Email для входа" desc={`Сейчас: ${tf.me.email || '—'}. Используется для входа и уведомлений.`}>
+          <HButton onClick={soon} style={btn} hoverStyle={{ borderColor: 'var(--text-muted)', color: 'var(--text-primary)' }}>Изменить</HButton>
+        </IdentityRow>
+        <IdentityRow title="Пароль" desc="Последнее изменение неизвестно. Рекомендуем менять пароль раз в 90 дней.">
+          <HButton onClick={soon} style={btn} hoverStyle={{ borderColor: 'var(--text-muted)', color: 'var(--text-primary)' }}>Сменить пароль</HButton>
+        </IdentityRow>
+        <IdentityRow title="Двухфакторная аутентификация (2FA)" desc="Дополнительный код из приложения-аутентификатора при каждом входе. Существенно повышает защиту.">
+          <Toggle on={twoFA} onClick={() => { setTwoFA((v) => !v); toast.info(twoFA ? '2FA выключена' : '2FA будет настроена (скоро)'); }} />
+        </IdentityRow>
+      </div>
+
+      {/* Активные сессии */}
+      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '6px' }}>Активные сессии</div>
+      <div style={{ marginBottom: '28px' }}>
+        <IdentityRow title="Chrome · Windows" desc="Этот браузер · активна сейчас · последняя активность только что.">
+          <span style={{ fontSize: '11.5px', color: '#22C55E', fontWeight: 600 }}>Текущая</span>
+        </IdentityRow>
+        <div style={{ paddingTop: '14px' }}>
+          <HButton onClick={soon} style={{ ...btn, color: '#EF4444', borderColor: 'rgba(239,68,68,.4)' }} hoverStyle={{ background: 'rgba(239,68,68,.10)' }}>
+            Завершить все другие сессии
+          </HButton>
+        </div>
+      </div>
+
+      {/* Корпоративный доступ */}
+      <div style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: '6px' }}>Корпоративный доступ (SSO)</div>
+      <div>
+        <IdentityRow title="Single Sign-On (SAML / OIDC)" desc="Подключите Google Workspace, Okta или Azure AD, чтобы участники входили через вашего провайдера. Доступно на тарифе Business.">
+          <HButton onClick={soon} style={btn} hoverStyle={{ borderColor: 'var(--text-muted)', color: 'var(--text-primary)' }}>Настроить</HButton>
+        </IdentityRow>
+        <IdentityRow title="Разрешённые домены email" desc="Ограничьте регистрацию в workspace только адресами вашей компании (например, @company.com).">
+          <HButton onClick={soon} style={btn} hoverStyle={{ borderColor: 'var(--text-muted)', color: 'var(--text-primary)' }}>Добавить домен</HButton>
+        </IdentityRow>
+        <IdentityRow title="Требовать вход только через SSO" desc="Запретить вход по паролю — все участники обязаны использовать SSO. Включайте после проверки настройки провайдера.">
+          <Toggle on={ssoOnly} onClick={() => { setSsoOnly((v) => !v); soon(); }} />
+        </IdentityRow>
+      </div>
     </>
   );
 }
@@ -1330,8 +1602,9 @@ function MembersSection(): JSX.Element {
       </div>
 
       <div style={{ border: '1px solid var(--border)', borderRadius: '12px', overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 150px', gap: '12px', padding: '10px 18px', background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', fontSize: '11.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 130px', gap: '12px', padding: '10px 18px', background: 'var(--bg-surface)', borderBottom: '1px solid var(--border)', fontSize: '11.5px', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em' }}>
           <span>Member</span>
+          <span />
           <span>Role</span>
         </div>
 
@@ -1359,7 +1632,7 @@ function MembersSection(): JSX.Element {
           tf.settingsMembers.map((m) => {
             const badge = roleBadgeColor(m.role);
             return (
-              <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1fr 150px', gap: '12px', alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
+              <div key={m.id} style={{ display: 'grid', gridTemplateColumns: '1fr auto 130px', gap: '12px', alignItems: 'center', padding: '12px 18px', borderBottom: '1px solid var(--border)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                   {m.avatarUrl ? (
                     <img src={m.avatarUrl} alt={m.name} style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
@@ -1378,6 +1651,27 @@ function MembersSection(): JSX.Element {
                     <div style={{ fontSize: '12px', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.email}</div>
                   </div>
                 </div>
+                {m.isYou ? (
+                  <span />
+                ) : m.isFollowing ? (
+                  <HButton
+                    onClick={m.toggleFollow}
+                    disabled={m.followBusy}
+                    style={{ justifySelf: 'end', height: '28px', padding: '0 11px', border: '1px solid var(--border-strong)', borderRadius: '7px', background: 'transparent', color: 'var(--text-secondary)', fontSize: '12px', fontWeight: 500, fontFamily: 'inherit', cursor: 'pointer', flexShrink: 0, transition: 'all .14s' }}
+                    hoverStyle={{ borderColor: 'rgba(239,68,68,.4)', color: '#EF4444' }}
+                  >
+                    Following
+                  </HButton>
+                ) : (
+                  <HButton
+                    onClick={m.toggleFollow}
+                    disabled={m.followBusy}
+                    style={{ justifySelf: 'end', height: '28px', padding: '0 12px', border: 'none', borderRadius: '7px', background: 'var(--accent)', color: '#fff', fontSize: '12px', fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', flexShrink: 0, transition: 'background .14s' }}
+                    hoverStyle={{ background: 'var(--accent-hover)' }}
+                  >
+                    Follow
+                  </HButton>
+                )}
                 <span style={{ justifySelf: 'start', fontSize: '11.5px', fontWeight: 600, padding: '3px 9px', borderRadius: '6px', background: badge.bg, color: badge.fg }}>
                   {m.isOwner ? 'Owner' : m.role}
                 </span>

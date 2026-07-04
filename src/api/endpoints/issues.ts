@@ -7,6 +7,9 @@ export interface UpdateIssuePayload {
   state_id?: string;
   priority?: string;
   sort_order?: number;
+  due_date?: string | null;
+  estimate_points?: number | null;
+  parent_id?: string | null;
 }
 
 /** Тело создания задачи. Обязательны `title` и `state_id`. */
@@ -66,5 +69,32 @@ export const issuesApi = {
     await apiClient.delete(
       `/workspaces/${workspaceSlug}/projects/${projectId}/issues/${issueId}`,
     );
+  },
+
+  addAssignee: async (ws: string, proj: string, issueId: string, userId: string): Promise<ApiIssue> => {
+    const { data } = await apiClient.post<ApiIssue>(
+      `/workspaces/${ws}/projects/${proj}/issues/${issueId}/assignees`,
+      { user_id: userId },
+    );
+    return data;
+  },
+  removeAssignee: async (ws: string, proj: string, issueId: string, userId: string): Promise<ApiIssue> => {
+    const { data } = await apiClient.delete<ApiIssue>(
+      `/workspaces/${ws}/projects/${proj}/issues/${issueId}/assignees/${userId}`,
+    );
+    return data;
+  },
+  addLabel: async (ws: string, proj: string, issueId: string, labelId: string): Promise<ApiIssue> => {
+    const { data } = await apiClient.post<ApiIssue>(
+      `/workspaces/${ws}/projects/${proj}/issues/${issueId}/labels`,
+      { label_id: labelId },
+    );
+    return data;
+  },
+  removeLabel: async (ws: string, proj: string, issueId: string, labelId: string): Promise<ApiIssue> => {
+    const { data } = await apiClient.delete<ApiIssue>(
+      `/workspaces/${ws}/projects/${proj}/issues/${issueId}/labels/${labelId}`,
+    );
+    return data;
   },
 };

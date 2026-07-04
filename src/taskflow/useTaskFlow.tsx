@@ -26,6 +26,7 @@ import { invitesApi } from '@/api/endpoints/invites';
 import { notificationsApi } from '@/api/endpoints/notifications';
 import { chatsApi } from '@/api/endpoints/chats';
 import { issuesApi } from '@/api/endpoints/issues';
+import type { UpdateIssuePayload } from '@/api/endpoints/issues';
 import { commentsApi } from '@/api/endpoints/comments';
 import { parseApiError } from '@/lib/apiError';
 import { resolveMediaUrl } from '@/lib/media';
@@ -206,6 +207,10 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
   const [statusMenu, setStatusMenu] = useState(false);
   const [page, setPage] = useState<Page>('home');
   const [settingsSection, setSettingsSection] = useState<SettingsSection>('general');
+  // редактирование General-настроек воркспейса
+  const [wsEditName, setWsEditName] = useState('');
+  const [wsEditSlug, setWsEditSlug] = useState('');
+  const [wsSettingsError, setWsSettingsError] = useState<string | null>(null);
   const [wsMenuOpen, setWsMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileTab, setProfileTab] = useState<'following' | 'followers'>('following');
@@ -589,10 +594,14 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       title: i.title,
       priorityIcon: <PriorityIcon p={i.priority} />,
       priorityLabel: ({ urgent: 'Urgent', high: 'High', medium: 'Medium', low: 'Low', none: 'No priority' } as const)[i.priority],
+      priorityValue: i.priority as string,
+      setPriority: (_p: string) => {},
       stateIcon: <StateIcon st={st} />,
       stateName: st.name,
       labelPills: <LabelPills ids={i.labels} />,
       hasLabels: (i.labels || []).length > 0,
+      labelsCurrent: [] as { id: string; name: string; color: string; remove: () => void }[],
+      labelChoices: [] as { id: string; name: string; color: string; add: () => void }[],
       desc: i.desc || [],
       subs,
       hasSub: subs.length > 0,
@@ -606,12 +615,17 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       commentCount: comments.length,
       assignees: (i.assignees || []).map((id) => {
         const m = members[id] || { initials: '', color: '#333', name: '' };
-        return { initials: m.initials, color: m.color, name: m.name };
+        return { initials: m.initials, color: m.color, name: m.name, userId: id };
       }),
+      assignedRemove: (_userId: string) => {},
+      assigneeChoices: [] as { userId: string; name: string; initials: string; color: string; add: () => void }[],
       est: i.est,
+      setEstimate: (_n: number | null) => {},
       created: i.created,
       due: i.due ? i.due.label : null,
       dueColor: i.due && i.due.over ? '#EF4444' : 'var(--text-primary)',
+      dueValue: '',
+      setDue: (_dateStr: string) => {},
       statusMenu,
       toggleStatusMenu: () => setStatusMenu((v) => !v),
       statusOptions: statesList.map((x) => ({
@@ -786,6 +800,29 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
     setStateOverrides((o) => ({ ...o, [id]: stateId }));
     patchMutation.mutate({ id, stateId });
   };
+  // ---- редактирование полей открытой задачи ----
+  const invalidateIssues = () => qc.invalidateQueries({ queryKey: ['ws', wsSlug, 'proj', projId, 'issues'] });
+  const editIssueMutation = useMutation({
+    mutationFn: (v: { id: string; body: UpdateIssuePayload }) => issuesApi.update(wsSlug, projId, v.id, v.body),
+    onSuccess: invalidateIssues,
+    onError: (err) => toast.error(parseApiError(err).message),
+  });
+  const assigneeMutation = useMutation({
+    mutationFn: (v: { id: string; userId: string; add: boolean }) =>
+      v.add
+        ? issuesApi.addAssignee(wsSlug, projId, v.id, v.userId)
+        : issuesApi.removeAssignee(wsSlug, projId, v.id, v.userId),
+    onSuccess: invalidateIssues,
+    onError: (err) => toast.error(parseApiError(err).message),
+  });
+  const labelMutation = useMutation({
+    mutationFn: (v: { id: string; labelId: string; add: boolean }) =>
+      v.add
+        ? issuesApi.addLabel(wsSlug, projId, v.id, v.labelId)
+        : issuesApi.removeLabel(wsSlug, projId, v.id, v.labelId),
+    onSuccess: invalidateIssues,
+    onError: (err) => toast.error(parseApiError(err).message),
+  });
   const realOnColDrop = (colId: string) => (e: React.DragEvent) => {
     e.preventDefault();
     const key = dragKey;
@@ -914,6 +951,7 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
   };
 
   if (openReal) {
+    const oid = openReal.id;
     const st = realStateById(openReal.state_id);
     const assignees = resolveAssignees(openReal);
     const labels = resolveLabels(openReal);
@@ -924,28 +962,86 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
         const nm = c.author?.display_name ?? '';
         return { initials: nm ? initialsOf(nm) : '?', avColor: colorFor(c.author_id || nm), name: nm || 'User', t: c.body, at: fmtDate(c.created_at) };
       });
+
+    // текущие id исполнителей/меток
+    const assigneeIds = (openReal.assignees ?? []).map((a) =>
+      typeof a === 'string' ? a : a.user_id ?? a.id ?? a.user?.id ?? '',
+    ).filter(Boolean) as string[];
+    const labelIds = (openReal.labels ?? []).map((l) => (typeof l === 'string' ? l : l.id ?? '')).filter(Boolean) as string[];
+    const allMembers = membersQ.data ?? [];
+    const allLabels = labelsQ.data ?? [];
+
+    // подзадачи = задачи проекта с parent_id === текущей
+    const children = allReal.filter((i) => i.parent_id === oid);
+    const isChildDone = (c: ApiIssue) => {
+      const g = realStateById(c.state_id)?.group;
+      return g === 'completed' || g === 'cancelled' || !!c.completed_at;
+    };
+    const doneCount = children.filter(isChildDone).length;
+    const completedState = realStates.find((s) => s.group === 'completed');
+    const unstartedState = realStates.find((s) => s.group === 'unstarted') ?? realStates[0];
+
     detail = {
       key: issueKeyOf(openReal),
       title: openReal.title,
       priorityIcon: <PriorityIcon p={openReal.priority} />,
       priorityLabel: ({ urgent: 'Urgent', high: 'High', medium: 'Medium', low: 'Low', none: 'No priority' } as const)[openReal.priority],
+      priorityValue: openReal.priority,
+      setPriority: (p: string) => editIssueMutation.mutate({ id: oid, body: { priority: p } }),
       stateIcon: <StateIcon st={st ?? FALLBACK_STATE} />,
       stateName: st?.name ?? '—',
       labelPills: <Pills items={labels} />,
       hasLabels: labels.length > 0,
+      // метки на задаче (с удалением) + доступные для добавления
+      labelsCurrent: labelIds
+        .map((id) => ({ id, ...(labelsMap[id] ?? { name: '', color: '#888' }) }))
+        .filter((l) => l.name)
+        .map((l) => ({ id: l.id, name: l.name, color: l.color, remove: () => labelMutation.mutate({ id: oid, labelId: l.id, add: false }) })),
+      labelChoices: allLabels
+        .filter((l) => !labelIds.includes(l.id))
+        .map((l) => ({ id: l.id, name: l.name, color: l.color, add: () => labelMutation.mutate({ id: oid, labelId: l.id, add: true }) })),
       desc: openReal.description ? openReal.description.split(/\n{2,}/).map((s) => s.trim()).filter(Boolean) : [],
-      subs: [],
-      hasSub: false,
-      subDone: 0,
-      subTotal: 0,
-      subPct: '0%',
+      // реальные подзадачи
+      subs: children.map((c) => {
+        const done = isChildDone(c);
+        return {
+          t: c.title,
+          done,
+          icon: <StateIcon st={realStateById(c.state_id) ?? FALLBACK_STATE} />,
+          color: done ? 'var(--text-muted)' : 'var(--text-primary)',
+          deco: (done ? 'line-through' : 'none') as string,
+          toggle: () => {
+            const target = done ? unstartedState : completedState;
+            if (target) patchState(c.id, target.id);
+          },
+        };
+      }),
+      hasSub: children.length > 0,
+      subDone: doneCount,
+      subTotal: children.length,
+      subPct: children.length ? `${Math.round((doneCount / children.length) * 100)}%` : '0%',
       comments: cmts,
       commentCount: cmts.length,
-      assignees: assignees.map((a) => ({ initials: a.initials, color: a.color, name: a.name ?? '' })),
+      // исполнители (с удалением) + доступные участники для добавления
+      assignees: assignees.map((a, i) => ({ initials: a.initials, color: a.color, name: a.name ?? '', userId: assigneeIds[i] ?? '' })),
+      assignedRemove: (userId: string) => assigneeMutation.mutate({ id: oid, userId, add: false }),
+      assigneeChoices: allMembers
+        .filter((m) => !assigneeIds.includes(m.user_id))
+        .map((m) => ({
+          userId: m.user_id,
+          name: m.user.display_name || m.user.email,
+          initials: m.user.display_name ? initialsOf(m.user.display_name) : (m.user.email[0] || '?').toUpperCase(),
+          color: colorFor(m.user_id),
+          add: () => assigneeMutation.mutate({ id: oid, userId: m.user_id, add: true }),
+        })),
       est: openReal.estimate_points ?? 0,
+      setEstimate: (n: number | null) => editIssueMutation.mutate({ id: oid, body: { estimate_points: n } }),
       created: fmtDate(openReal.created_at),
       due: due ? due.label : null,
       dueColor: due && due.over ? '#EF4444' : 'var(--text-primary)',
+      dueValue: openReal.due_date ? openReal.due_date.slice(0, 10) : '',
+      setDue: (dateStr: string) =>
+        editIssueMutation.mutate({ id: oid, body: { due_date: dateStr ? new Date(dateStr + 'T00:00:00.000Z').toISOString() : null } }),
       statusMenu,
       toggleStatusMenu: () => setStatusMenu((v) => !v),
       statusOptions: realStates.map((x) => ({
@@ -1186,17 +1282,6 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
 
   const roleLabel = (r: string): string => (r ? r.charAt(0).toUpperCase() + r.slice(1) : '—');
 
-  const settingsMembers = (settingsMembersQ.data ?? []).map((m) => ({
-    id: m.user_id,
-    name: m.user.display_name || m.user.email,
-    email: m.user.email,
-    role: roleLabel(m.role),
-    initials: m.user.display_name ? initialsOf(m.user.display_name) : (m.user.email[0] || '?').toUpperCase(),
-    color: colorFor(m.user_id),
-    avatarUrl: m.user.avatar_url,
-    isYou: !!user && m.user_id === user.id,
-    isOwner: !!(currentWs && currentWs.owner_id === m.user_id),
-  }));
   const settingsMembersLoading = settingsMembersActive && settingsMembersQ.isLoading;
   const settingsMembersError = settingsMembersActive && settingsMembersQ.isError;
 
@@ -1295,8 +1380,8 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
   const followingQ = useQuery({
     queryKey: ['user', myId, 'following'],
     queryFn: () => usersApi.following(myId),
-    // Нужно в профиле, в списке участников и в чате (взаимные подписчики).
-    enabled: (profileOpen || inviteOpen || page === 'chat') && !!myId,
+    // Нужно в профиле, в списке участников, в настройках воркспейса и в чате (взаимные подписчики).
+    enabled: (profileOpen || inviteOpen || settingsMembersActive || page === 'chat') && !!myId,
   });
   const followingIds = new Set((followingQ.data ?? []).map((u) => u.id));
 
@@ -1321,6 +1406,25 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
     },
     onError: (err) => toast.error(parseApiError(err).message),
   });
+
+  const settingsMembers = (settingsMembersQ.data ?? []).map((m) => ({
+    id: m.user_id,
+    name: m.user.display_name || m.user.email,
+    email: m.user.email,
+    role: roleLabel(m.role),
+    initials: m.user.display_name ? initialsOf(m.user.display_name) : (m.user.email[0] || '?').toUpperCase(),
+    color: colorFor(m.user_id),
+    avatarUrl: m.user.avatar_url,
+    isYou: !!user && m.user_id === user.id,
+    isOwner: !!(currentWs && currentWs.owner_id === m.user_id),
+    // Подписка (для чужих участников) — как в модалке «Invite members».
+    isFollowing: followingIds.has(m.user_id),
+    followBusy: followMutation.isPending || unfollowMutation.isPending,
+    toggleFollow: () =>
+      followingIds.has(m.user_id)
+        ? unfollowMutation.mutate(m.user_id)
+        : followMutation.mutate(m.user_id),
+  }));
 
   const uploadAvatarMutation = useMutation({
     mutationFn: (file: File) => usersApi.uploadAvatar(file),
@@ -1833,6 +1937,52 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
       toast.error(`Не удалось удалить workspace: ${msg}`);
     },
   });
+
+  // ---- General-настройки воркспейса (имя + slug) ----
+  // Синхронизируем поля с текущим воркспейсом при его смене.
+  useEffect(() => {
+    setWsEditName(currentWs?.name ?? '');
+    setWsEditSlug(currentWs?.slug ?? '');
+    setWsSettingsError(null);
+  }, [currentWs?.slug, currentWs?.name]);
+
+  const updateWsMutation = useMutation({
+    mutationFn: (body: { name?: string; slug?: string }) => workspacesApi.update(wsSlug, body),
+    onSuccess: async (ws) => {
+      setWsSettingsError(null);
+      await qc.invalidateQueries({ queryKey: ['workspaces'] });
+      // slug мог измениться → переключаемся на новый, иначе воркспейс «потеряется».
+      if (ws.slug !== wsSlug) setWorkspace(ws.slug);
+      toast.success('Настройки workspace сохранены');
+    },
+    onError: (err) => {
+      const p = parseApiError(err);
+      setWsSettingsError(p.message);
+      toast.error(`Не удалось сохранить: ${p.message}`);
+    },
+  });
+  const canEditWorkspace = myRole === 'owner' || myRole === 'admin' || isOwner;
+  const wsSettingsDirty =
+    !!currentWs && (wsEditName.trim() !== currentWs.name || wsEditSlug.trim() !== currentWs.slug);
+  const saveWsSettings = () => {
+    if (!currentWs) return;
+    const name = wsEditName.trim();
+    const slug = wsEditSlug.trim();
+    setWsSettingsError(null);
+    if (name.length < 1) {
+      setWsSettingsError('Название не может быть пустым.');
+      return;
+    }
+    if (!/^[a-z0-9-]{2,50}$/.test(slug)) {
+      setWsSettingsError('URL: только строчные буквы, цифры и дефис (2–50 символов).');
+      return;
+    }
+    const body: { name?: string; slug?: string } = {};
+    if (name !== currentWs.name) body.name = name;
+    if (slug !== currentWs.slug) body.slug = slug;
+    if (!body.name && !body.slug) return;
+    updateWsMutation.mutate(body);
+  };
 
   // ---- sidebar nav ----
   const navItems = navConfig.map((n) => {
@@ -2395,6 +2545,17 @@ export function useTaskFlow(opts: UseTaskFlowOptions = {}) {
     settingsMembersCount: settingsMembers.length,
     workspaceUrl,
     isOwner,
+
+    // General-настройки воркспейса
+    canEditWorkspace,
+    generalName: wsEditName,
+    onGeneralName: (v: string) => setWsEditName(v),
+    generalSlug: wsEditSlug,
+    onGeneralSlug: (v: string) => setWsEditSlug(v),
+    saveWsSettings,
+    wsSettingsSaving: updateWsMutation.isPending,
+    wsSettingsDirty,
+    wsSettingsError,
 
     // home
     homeGreeting,
