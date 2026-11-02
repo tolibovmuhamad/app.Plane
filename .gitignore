@@ -29,3 +29,7 @@ vite.config.d.ts
 *.njsproj
 *.sln
 *.sw?
+
+# Временные файлы Vite и черновики
+.vite/
+scratch/
